@@ -1,0 +1,11 @@
+[package]
+name = "pike-mod"
+version = "0.1.0"
+authors = ["Martin Karlgren <marty@roxen.com>"]
+build = "build.rs"
+
+[build-dependencies]
+bindgen = "0.35"
+
+[lib]
+crate-type = ["cdylib"]
