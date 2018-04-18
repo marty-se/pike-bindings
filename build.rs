@@ -3,12 +3,12 @@ extern crate bindgen;
 use std::env;
 use std::path::PathBuf;
 use std::process::Command;
+use std::fs;
+use std::fs::File;
+use std::fs::OpenOptions;
+use std::io::prelude::*;
 
 fn main() {
-    // Tell cargo to tell rustc to link the system bzip2
-    // shared library.
-//    println!("cargo:rustc-link-lib=bz2");
-
     let pike_includes_output = Command::new("pike")
         .arg("-x")
         .arg("module")
@@ -19,71 +19,41 @@ fn main() {
     pike_includes_str.pop(); // Remove newline.
 
     let pike_includes_path = PathBuf::from(pike_includes_str);
- //   let array_h_path = pike_includes_path.join("array.h");
- 
-    // The bindgen::Builder is the main entry point
-    // to bindgen, and lets you build up options for
-    // the resulting bindings.
 
-    /*
-            .whitelist_recursively(false)
-        .whitelist_type("array")
-        .whitelist_type("svalue")
-        .whitelist_type("anything")
-        .whitelist_type("callable")
-        .whitelist_type("mapping")
-        .whitelist_type("multiset")
-        .whitelist_type("object")
-        .whitelist_type("program")
-        .whitelist_type("pike_string")
-        .whitelist_type("pike_type")
-        .whitelist_type("ref_dummy")
-    */
+    let mut builder = bindgen::Builder::default()
+        .raw_line("#![allow(dead_code)]")
+        .raw_line("#![allow(unused_variables)]")
+        .raw_line("#![allow(non_camel_case_types)]")
+        .raw_line("#![allow(non_upper_case_globals)]")
+        .whitelist_recursively(true)
 
-    let bindings = bindgen::Builder::default()
-        // The input header we would like to generate
-        // bindings for.
-        /*
-        .whitelist_recursively(false)
-        .whitelist_type("array")
+        // Refcounted Pike types can't be copied without refcount handling, so Clone is implemented instead.
+        .no_copy("svalue")
+        .no_copy("array")
+        .no_copy("mapping")
+        .no_copy("multiset")
+        .no_copy("object")
+        .no_copy("pike_string")
+        .no_copy("program")
+        .no_copy("pike_type")
 
         .whitelist_type("svalue")
-        .whitelist_type("ref_dummy")
-        .whitelist_type("anything")
-        .whitelist_type("node")
-        .whitelist_type("node_s")
-        .whitelist_type("TYPEOF")
-        .whitelist_type("SUBTYPEOF")
 
-        .whitelist_type("callable")
+        .whitelist_function("really_free_.*")
+        .whitelist_function("schedule_really_free_object")
 
-        .whitelist_type("mapping")
-        .whitelist_type("mapping_data")
-        .whitelist_type("keypair")
+        .whitelist_function("safe_apply_svalue")
 
-        .whitelist_type("multiset")
-        .whitelist_type("multiset_data")
-        .whitelist_type("msnode")
-        .whitelist_type("msnode_ind")
-        .whitelist_type("msnode_indval")
+        .whitelist_var("[a-z]*_type_string")
+        .whitelist_function("f_string_to_utf8")
+        .whitelist_function("f_utf8_to_string")
 
-        .whitelist_type("object")
-
-        .whitelist_type("pike_string")
-        .whitelist_type("size_shift")
-
-        .whitelist_type("program")
-        .whitelist_type("pike_type")
-        .whitelist_type("identifier")
-        .whitelist_type("reference")
-        .whitelist_type("inherit")
-        .whitelist_type("idptr")
-        .whitelist_type("program_constant")
-
+        .whitelist_type("visit_thing_fn")
         .whitelist_type("visit_enter_cb")
         .whitelist_type("visit_ref_cb")
         .whitelist_type("visit_leave_cb")
-
+        .whitelist_var("VISIT_.*")
+        .whitelist_function("type_from_visit_fn")
         .whitelist_function("visit_array")
         .whitelist_function("visit_mapping")
         .whitelist_function("visit_multiset")
@@ -91,43 +61,73 @@ fn main() {
         .whitelist_function("visit_program")
         .whitelist_function("visit_string")
         .whitelist_function("visit_type")
-
         // Must be called with an svalue.
         .whitelist_function("visit_function")
         .whitelist_function("real_visit_svalues")
 
-        .whitelist_var("VISIT_.*")
-        .whitelist_function("type_from_visit_fn")
+        .whitelist_function("quick_add_function")
+        .whitelist_function("pike_add_function2")
+        .whitelist_function("debug_start_new_program")
+        .whitelist_function("debug_end_program")
+        .whitelist_function("debug_end_class")
 
-        .whitelist_type("node_data")
-        .whitelist_type("compiler_frame")
-        .whitelist_type("node_identifier")
-        .whitelist_type("local_variable")
+        .whitelist_function("debug_make_shared_.*")
 
-        .whitelist_type("timeval")
-        .whitelist_type("__time_t")
-        .whitelist_type("__suseconds_t")
-*/
-        .header(pike_includes_path.join("array.h").to_str().unwrap())
-        .header(pike_includes_path.join("svalue.h").to_str().unwrap())
-        .header(pike_includes_path.join("mapping.h").to_str().unwrap())
-        .header(pike_includes_path.join("multiset.h").to_str().unwrap())
-        .header(pike_includes_path.join("object.h").to_str().unwrap())
-        .header(pike_includes_path.join("program.h").to_str().unwrap())
-        .header(pike_includes_path.join("stralloc.h").to_str().unwrap())
-        .header(pike_includes_path.join("multiset.h").to_str().unwrap())
-        .header(pike_includes_path.join("interpret.h").to_str().unwrap())
-        .header(pike_includes_path.join("las.h").to_str().unwrap())
-        .header(pike_includes_path.join("gc.h").to_str().unwrap())
- 
-         // Finish the builder and generate the bindings.
-        .generate()
-        // Unwrap the Result and panic on failure.
-        .expect("Unable to generate bindings");
+        .whitelist_var("OPT_.*")
+        .whitelist_var("PIKE_T_.*")
 
-    // Write the bindings to the $OUT_DIR/bindings.rs file.
+        .whitelist_var("Pike_interpreter_pointer");
+
+    let header_fnames = vec!["array.h", "svalue.h", "mapping.h", "multiset.h",
+        "object.h", "program.h", "stralloc.h", "multiset.h", "interpret.h", "las.h",
+        "gc.h", "global.h", "machine.h", "pike_types.h", "builtin_functions.h"];
+
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
-    
-    bindings.write_to_file(out_path.join("bindings.rs")).expect("Couldn't write bindings!");
-        
+
+    let paths = fs::read_dir(pike_includes_path.to_str().unwrap()).unwrap();
+
+    // Loop over all .h files in the include directory for preprocessing. However, only the headers
+    // listed in header_fnames will be added to the builder (and they may require non-listed headers.)
+    for path in paths {
+        let fname = path.unwrap().file_name();
+        let fname_str = fname.to_str().unwrap();
+        if !fname_str.ends_with(".h") {
+            continue;
+        }
+        let joined_out_path = out_path.join(fname_str);
+
+        let joined_incl_path = pike_includes_path.join(fname_str);
+        let header_path = joined_incl_path.to_str().unwrap();
+        let mut f = File::open(header_path).expect("File not found");
+        let mut contents = String::new();
+        f.read_to_string(&mut contents).expect("Could not read file");
+
+        if !fname_str.ends_with("global.h") {
+            // Bindgen doesn't understand the PMOD_EXPORT prefix, so let's just remove it.
+            contents = contents.replace("PMOD_EXPORT ", "");
+        }
+
+        let mut f = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&joined_out_path)
+            .expect("Could not create file");
+        f.write_all(&contents.into_bytes()).expect("Could not write file");
+
+        if header_fnames.iter().filter(|&header_fname| fname_str.ends_with(header_fname)).next() != None {
+            // Only add headers explicitly listed in header_fnames to the list, since some
+            // other headers seem to cause issues.
+            builder = builder.header(joined_out_path.to_str().unwrap());
+        }
+    }
+
+    let bindings = builder.generate().expect("Unable to generate bindings");
+
+    let bindings_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set"))
+      .join("src/bindings/");
+
+    std::fs::create_dir_all(&bindings_dir).expect("Could not create bindings dir");
+
+    bindings.write_to_file(bindings_dir.join("mod.rs")).expect("Couldn't write bindings!");
 }
