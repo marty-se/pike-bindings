@@ -7,6 +7,21 @@ mod pike_function;
 mod pike_svalue;
 mod pike_str;
 
+pub fn start_new_program(filename: &str, line: u32)
+{
+  unsafe {
+    let fname = ::std::ffi::CString::new(filename).unwrap();
+    debug_start_new_program(line as i64, fname.as_ptr());
+  }
+}
+
+pub fn end_class(name: &str) {
+  let class_name = ::std::ffi::CString::new(name).unwrap();
+  unsafe {
+    debug_end_class(class_name.as_ptr(), class_name.to_bytes().len() as isize, 0);
+  }
+}
+
 pub fn add_pike_func(name: &str, type_str: &str, fun: unsafe extern "C" fn(i32) -> ())
 {
   let func_name = CString::new(name).unwrap();
