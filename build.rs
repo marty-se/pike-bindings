@@ -43,7 +43,7 @@ fn main() {
         .whitelist_function("really_free_.*")
         .whitelist_function("schedule_really_free_object")
 
-        .whitelist_function("safe_apply_svalue")
+        .whitelist_function("safe_apply.*")
 
         .whitelist_var("[a-z]*_type_string")
         .whitelist_function("f_string_to_utf8")
@@ -71,6 +71,10 @@ fn main() {
         .whitelist_function("debug_start_new_program")
         .whitelist_function("debug_end_program")
         .whitelist_function("debug_end_class")
+        .whitelist_function("pike_set_prog_event_callback")
+        .whitelist_function("low_add_storage")
+
+        .whitelist_var("PROG_EVENT_.*")
 
         .whitelist_function("debug_make_shared_.*")
 

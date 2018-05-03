@@ -26,42 +26,38 @@ impl<'a> From<&'a svalue> for PikeThing {
 
 impl<'a> From<&'a PikeThing> for svalue {
   fn from (pike_thing: &PikeThing) -> Self {
-    let res: (anything, u32, u16) =
     match *pike_thing {
       PikeThing::Array(ref a) => {
-        (anything { array: a.array }, PIKE_T_ARRAY, 0)
+        a.into()
       }
       PikeThing::Float(ref f) => {
-        (anything { float_number: f.float_number }, PIKE_T_FLOAT, 0)
+        f.into()
       }
       PikeThing::Function(ref f) => {
-        (anything { object: f.pikeobj.object }, PIKE_T_FUNCTION, f.fun_idx)
+        f.into()
       }
       PikeThing::Int(ref i) => {
-        (anything { integer: i.integer }, PIKE_T_INT, 0)
+        i.into()
       }
       PikeThing::Mapping(ref m) => {
-        (anything { mapping: m.mapping }, PIKE_T_MAPPING, 0)
+        m.into()
       }
       PikeThing::Multiset(ref m) => {
-        (anything { multiset: m.multiset }, PIKE_T_MULTISET, 0)
+        m.into()
       }
       PikeThing::Object(ref o) => {
-        (anything { object: o.object }, PIKE_T_OBJECT, 0)
+        o.into()
       }
       PikeThing::PikeString(ref s) => {
-        (anything { string: s.pike_string }, PIKE_T_STRING, 0)
+        s.into()
       }
       PikeThing::Program(ref p) => {
-        (anything { program: p.program }, PIKE_T_PROGRAM, 0)
+        p.into()
       }
       PikeThing::Type(ref t) => {
-        (anything { type_: t.pike_type }, PIKE_T_TYPE, 0)
+        t.into()
       }
-    };
-    let t = svalue__bindgen_ty_1__bindgen_ty_1 { type_: res.1 as c_ushort, subtype: res.2 as c_ushort };
-    let tu = svalue__bindgen_ty_1 {t: t};
-    return svalue {u: res.0, tu: tu};
+    }
   }
 }
 
@@ -104,55 +100,5 @@ impl svalue {
   fn refcounted_type(&self) -> bool {
     // Equivalent of REFCOUNTED_TYPE macro in svalue.h
     return (self.type_() & !(PIKE_T_ARRAY as u16 - 1)) != 0;
-  }
-
-  pub fn push_to_stack (self)
-  {
-    self.add_ref();
-    unsafe {
-      let sp = (*Pike_interpreter_pointer).stack_pointer;
-      ptr::write(sp, self);
-      (*Pike_interpreter_pointer).stack_pointer = (*Pike_interpreter_pointer).stack_pointer.offset(1);
-    }
-  }
-
-  pub fn pop_from_stack() -> Self {
-    unsafe {
-      // Ownership is transferred, so we won't subtract refs.
-      (*Pike_interpreter_pointer).stack_pointer = (*Pike_interpreter_pointer).stack_pointer.offset(-1);
-      let sval = &*(*Pike_interpreter_pointer).stack_pointer;
-      return svalue { tu: sval.tu, u: sval.u };
-    }
-  }
-
-  pub fn get_from_stack (stack_pos: isize) -> Self
-  {
-    let sval;
-    unsafe {
-      let sp = (*Pike_interpreter_pointer).stack_pointer.offset(stack_pos);
-      sval = ptr::read(sp);
-      sval.add_ref();
-    }
-    return sval;
-  }
-}
-
-impl Clone for svalue {
-  fn clone(&self) -> Self {
-    self.add_ref();
-    return svalue { tu: self.tu, u: self.u };
-  }
-}
-
-impl Drop for svalue {
-  fn drop(&mut self) {
-    match self.sub_ref() {
-      Some(r) => if r == 0 {
-        unsafe {
-          really_free_svalue(self);
-        }
-      }
-      None => ()
-    }
   }
 }

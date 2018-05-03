@@ -1,12 +1,17 @@
 use ::pike::*;
 
+pub struct PikeString {
+  pike_string: *mut pike_string
+}
+
+def_pike_type!(PikeString, pike_string, string, PIKE_T_STRING, really_free_string);
+
 impl From<PikeString> for String
 {
   fn from(pikestr: PikeString) -> String
   {
     let pt = PikeThing::PikeString(pikestr);
-    let sval: svalue = svalue::from(&pt);
-    sval.push_to_stack();
+    pt.push_to_stack();
 
     unsafe {
       f_string_to_utf8(1);
@@ -35,8 +40,7 @@ impl<'a> From <&'a str> for PikeString
     unsafe {
       let pikestr = PikeString::new(debug_make_shared_binary_string (s.as_ptr() as *const i8, s.len()));
       let pt = PikeThing::PikeString(pikestr);
-      let sval: svalue = svalue::from(&pt);
-      sval.push_to_stack();
+      pt.push_to_stack();
 
       f_utf8_to_string(1);
       let thing = PikeThing::pop_from_stack();
