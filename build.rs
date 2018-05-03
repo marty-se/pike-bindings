@@ -1,4 +1,5 @@
 extern crate bindgen;
+extern crate encoding;
 
 use std::env;
 use std::path::PathBuf;
@@ -86,6 +87,9 @@ fn main() {
 
     let paths = fs::read_dir(pike_includes_path.to_str().unwrap()).unwrap();
 
+    let in_encoding = encoding::all::ISO_8859_1 as encoding::EncodingRef;
+    let in_trap = encoding::DecoderTrap::Ignore;
+
     // Loop over all .h files in the include directory for preprocessing. However, only the headers
     // listed in header_fnames will be added to the builder (and they may require non-listed headers.)
     for path in paths {
@@ -99,9 +103,10 @@ fn main() {
         let joined_incl_path = pike_includes_path.join(fname_str);
         let header_path = joined_incl_path.to_str().unwrap();
         let mut f = File::open(header_path).expect("File not found");
-        let mut contents = String::new();
-        f.read_to_string(&mut contents).expect("Could not read file");
+        let mut bytes = Vec::new();
+        f.read_to_end(&mut bytes).expect("Could not read file");
 
+        let mut contents = in_encoding.decode(&bytes, in_trap).unwrap();
         if !fname_str.ends_with("global.h") {
             // Bindgen doesn't understand the PMOD_EXPORT prefix, so let's just remove it.
             contents = contents.replace("PMOD_EXPORT ", "");

@@ -6,3 +6,4 @@ build = "build.rs"
 
 [build-dependencies]
 bindgen = "0.35"
+encoding = "0.2"
