@@ -1,8 +1,9 @@
 use ::bindings::*;
+use ::serde::ser::*;
 use std::os::raw::c_long;
 
 pub struct PikeInt {
-  integer: c_long
+  pub integer: c_long
 }
 
 impl PikeInt {
@@ -19,4 +20,12 @@ impl<'a> From<&'a PikeInt> for svalue {
     let tu = ::bindings::svalue__bindgen_ty_1 {t: t};
     return ::bindings::svalue {u: a, tu: tu};
   }
+}
+
+impl Serialize for PikeInt {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: Serializer
+    {
+        serializer.serialize_i64(self.integer)
+    }
 }

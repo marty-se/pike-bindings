@@ -1,4 +1,6 @@
 use ::pike::*;
+use ::serde::ser::*;
+use ::serde::*;
 
 pub enum PikeThing {
   Array(PikeArray),
@@ -40,5 +42,20 @@ impl PikeThing {
       sval = &*(*Pike_interpreter_pointer).stack_pointer;
     }
     return sval.into();
+  }
+}
+
+impl Serialize for PikeThing {
+  fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where S: ::serde::Serializer {
+    match self {
+      PikeThing::Array(a) => { a.serialize(serializer) }
+      PikeThing::Mapping(m) => { m.serialize(serializer) }
+      PikeThing::Multiset(m) => { m.serialize(serializer) }
+      PikeThing::PikeString(s) => { s.serialize(serializer) }
+      PikeThing::Int(i) => { i.serialize(serializer) }
+      PikeThing::Float(f) => { f.serialize(serializer) }
+      _ => Err(ser::Error::custom("Unsupported Pike type"))
+    }
   }
 }

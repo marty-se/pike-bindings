@@ -40,6 +40,11 @@ fn main() {
 
         .whitelist_type("svalue")
 
+        .whitelist_function("aggregate_array")
+        .whitelist_function("f_aggregate_mapping")
+        .whitelist_function("f_get_iterator")
+        .whitelist_function("multiset_sizeof")
+
         .whitelist_function("really_free_.*")
         .whitelist_function("schedule_really_free_object")
 

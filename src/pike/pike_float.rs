@@ -1,5 +1,6 @@
 use ::bindings::*;
 use ::bindings::PIKE_T_FLOAT;
+use ::serde::ser::*;
 
 pub struct PikeFloat {
   float_number: f64
@@ -19,4 +20,12 @@ impl<'a> From<&'a PikeFloat> for svalue {
     let tu = ::bindings::svalue__bindgen_ty_1 {t: t};
     return ::bindings::svalue {u: a, tu: tu};
   }
+}
+
+impl Serialize for PikeFloat {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: Serializer
+    {
+        serializer.serialize_f64(self.float_number)
+    }
 }
