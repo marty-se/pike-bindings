@@ -1,0 +1,17 @@
+[package]
+name = "pike-macros"
+version = "0.1.0"
+authors = ["Martin Karlgren <martin@karlgren.me>"]
+
+[dependencies]
+quote = "0.5"
+serde = "1.0.45"
+serde_derive = "1.0.45"
+lazy_static = "1.0"
+
+[dependencies.syn]
+version = "0.13"
+features = ["full", "parsing", "printing", "clone-impls"]
+
+[lib]
+proc-macro = true

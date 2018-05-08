@@ -5,6 +5,7 @@ authors = ["Martin Karlgren <martin@karlgren.me>"]
 build = "build.rs"
 
 [dependencies]
+pike-macros = { path = "pike-macros" }
 serde = "1.0.41"
 
 [build-dependencies]
