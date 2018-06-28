@@ -10,6 +10,20 @@ def_pike_type!(PikeMapping, mapping, mapping, PIKE_T_MAPPING, really_free_mappin
 use ::pike::*;
 
 impl PikeMapping {
+  pub fn with_capacity(size: usize) -> Self {
+      unsafe {
+          PikeMapping { mapping: debug_allocate_mapping(size as i32) }
+      }
+  }
+
+  pub fn insert (&self, key: &PikeThing, val: &PikeThing) {
+      let key_sval: svalue = key.into();
+      let val_sval: svalue = val.into();
+      unsafe {
+          mapping_insert (self.mapping, &key_sval, &val_sval);
+      }
+  }
+
   pub fn aggregate_from_stack(num_entries: usize) -> Self {
     unsafe {
       f_aggregate_mapping(num_entries as i32); // Aggregates a mapping and pushes it to the Pike stack.

@@ -9,17 +9,39 @@ pub struct PikeArray {
 def_pike_type!(PikeArray, array, array, PIKE_T_ARRAY, really_free_array);
 
 impl PikeArray {
-  pub fn aggregate_from_stack(num_entries: usize) -> Self {
-    unsafe {
-      PikeArray { array: aggregate_array(num_entries as i32) }
+    /// Returns an empty array with a pre-allocated capacity.
+    pub fn with_capacity(capacity: usize) -> Self {
+        unsafe {
+            PikeArray { array: real_allocate_array(0, capacity as isize) }
+        }
     }
-  }
 
-  pub fn len(&self) -> usize {
-    unsafe {
-      (*self.array).size as usize
+    /// Returns an array with the specified size.
+    pub fn with_size(size: usize) -> Self {
+        unsafe {
+            PikeArray { array: real_allocate_array(size as isize, 0) }
+        }
     }
-  }
+
+    pub fn aggregate_from_stack(num_entries: usize) -> Self {
+        unsafe {
+            PikeArray { array: aggregate_array(num_entries as i32) }
+        }
+    }
+
+    pub fn append(&mut self, value: &PikeThing) {
+        let mut sval: svalue = value.into();
+        unsafe {
+            // FIXME: Handle refcounts
+            self.array = append_array(self.array, &mut sval);
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        unsafe {
+            (*self.array).size as usize
+        }
+    }
 }
 
 pub struct PikeArrayIterator {
