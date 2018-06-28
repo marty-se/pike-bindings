@@ -61,7 +61,21 @@ impl<'a> From<&'a PikeThing> for svalue {
   }
 }
 
+impl ::std::default::Default for svalue {
+    fn default() -> Self {
+        svalue::undefined()
+    }
+}
+
 impl svalue {
+  pub fn undefined() -> Self {
+    let a = ::bindings::anything { integer: 0 };
+    let t = ::bindings::svalue__bindgen_ty_1__bindgen_ty_1 {
+      type_: PIKE_T_INT as ::std::os::raw::c_ushort, subtype: NUMBER_UNDEFINED as u16 };
+    let tu = ::bindings::svalue__bindgen_ty_1 {t: t};
+    return ::bindings::svalue {u: a, tu: tu};
+  }
+
   pub fn add_ref(&self) -> Option<usize> {
     if self.refcounted_type() {
       unsafe {
@@ -82,6 +96,12 @@ impl svalue {
       }
     }
     return None;
+  }
+
+  pub fn mark_free(&mut self) -> () {
+      unsafe {
+          self.tu.t.type_ = PIKE_T_FREE as u16;
+      }
   }
 
   fn type_(&self) -> u16 {
