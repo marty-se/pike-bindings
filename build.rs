@@ -38,10 +38,25 @@ fn main() {
         .no_copy("program")
         .no_copy("pike_type")
 
+        .whitelist_function("Pike_error")
+
+        .whitelist_function("init_recovery")
+        .whitelist_var("JMP_BUF")
+        .whitelist_var("throw_value")
+
+        .whitelist_function("push_text")
+
         .whitelist_type("svalue")
+        .whitelist_var("NUMBER_.*")
 
         .whitelist_function("aggregate_array")
+        .whitelist_function("real_allocate_array")
+        .whitelist_function("append_array")
+
         .whitelist_function("f_aggregate_mapping")
+        .whitelist_function("mapping_insert")
+        .whitelist_function("debug_allocate_mapping")
+
         .whitelist_function("f_get_iterator")
         .whitelist_function("multiset_sizeof")
 
@@ -49,6 +64,8 @@ fn main() {
         .whitelist_function("schedule_really_free_object")
 
         .whitelist_function("safe_apply.*")
+        .whitelist_function("apply.*")
+        .whitelist_function("debug_master")
 
         .whitelist_var("[a-z]*_type_string")
         .whitelist_function("f_string_to_utf8")
@@ -78,6 +95,11 @@ fn main() {
         .whitelist_function("debug_end_class")
         .whitelist_function("pike_set_prog_event_callback")
         .whitelist_function("low_add_storage")
+        .whitelist_function("add_program_constant")
+        .whitelist_function("debug_clone_object")
+        .whitelist_function("program_index_no_free")
+
+        .whitelist_var("Pike_compiler")
 
         .whitelist_var("PROG_EVENT_.*")
 
