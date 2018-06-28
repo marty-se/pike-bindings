@@ -22,6 +22,38 @@ impl<'a> From<&'a PikeInt> for svalue {
   }
 }
 
+macro_rules! gen_from_type {
+  ($inttype: ident) => {
+    impl From<$inttype> for PikeInt {
+      fn from(i: $inttype) -> PikeInt {
+        // FIXME: Lossy conversion of u64
+        // (and i64 + u32 on 32-bit machines).
+        return PikeInt::new(i as c_long);
+      }
+    }
+    impl From<PikeInt> for $inttype {
+      fn from (i: PikeInt) -> $inttype {
+        return i.integer as $inttype;
+      }
+    }
+    impl<'a> From<&'a PikeInt> for $inttype {
+      fn from (i: &'a PikeInt) -> $inttype {
+        return i.integer as $inttype;
+      }
+    }
+  };
+}
+
+gen_from_type!(u64);
+gen_from_type!(u32);
+gen_from_type!(u16);
+gen_from_type!(u8);
+
+gen_from_type!(i64);
+gen_from_type!(i32);
+gen_from_type!(i16);
+gen_from_type!(i8);
+
 impl Serialize for PikeInt {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where S: Serializer

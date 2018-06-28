@@ -2,6 +2,12 @@ use ::pike::*;
 use ::serde::ser::*;
 use ::serde::*;
 
+use std::fmt;
+
+use serde::de::{Visitor, MapAccess, SeqAccess};
+
+/// The `PikeThing` type. Equivalent to Pike's `svalue` type, with Rust idioms.
+#[derive(Debug)]
 pub enum PikeThing {
   Array(PikeArray),
   Float(PikeFloat),
@@ -79,4 +85,124 @@ impl Serialize for PikeThing {
       _ => Err(ser::Error::custom("Unsupported Pike type"))
     }
   }
+}
+
+struct PikeThingVisitor;
+
+impl<'de> Visitor<'de> for PikeThingVisitor {
+    type Value = PikeThing;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("something serializeable to a Pike thing")
+    }
+
+    fn visit_i8<E>(self, value: i8) -> Result<Self::Value, E> {
+        Ok(value.into())
+    }
+
+    fn visit_i16<E>(self, value: i16) -> Result<Self::Value, E> {
+        Ok(value.into())
+    }
+
+    fn visit_i32<E>(self, value: i32) -> Result<Self::Value, E> {
+        Ok(value.into())
+    }
+
+    fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E> {
+        Ok(value.into())
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E> {
+        Ok(PikeThing::PikeString(v.into()))
+    }
+
+    fn visit_map<M>(self, mut access: M) -> Result<Self::Value, M::Error>
+    where M: MapAccess<'de>,
+    {
+        let m = PikeMapping::with_capacity(access.size_hint().unwrap_or(0));
+
+        // While there are entries remaining in the input, add them
+        // into our map.
+        while let Some((key, value)) = access.next_entry()? {
+            m.insert(&key, &value);
+        }
+
+        Ok(PikeThing::Mapping(m))
+    }
+
+    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+    where A: SeqAccess<'de>,
+    {
+        let mut a = PikeArray::with_capacity(seq.size_hint().unwrap_or(0));
+
+        while let Some(value) = seq.next_element()? {
+            a.append(&value)
+        }
+        Ok(PikeThing::Array(a))
+    }
+}
+
+impl<'de> Deserialize<'de> for PikeThing {
+  fn deserialize<D>(deserializer: D) -> Result<PikeThing, D::Error>
+  where D: Deserializer<'de> {
+    deserializer.deserialize_any(PikeThingVisitor)
+  }
+}
+
+impl From<()> for PikeThing {
+  fn from(_: ()) -> PikeThing {
+    return PikeThing::undefined();
+  }
+}
+
+macro_rules! gen_from_type_int {
+  ($inttype: ident) => {
+    impl From<$inttype> for PikeThing {
+      fn from(i: $inttype) -> PikeThing {
+      return PikeThing::Int(i.into());
+      }
+    }
+  };
+}
+
+gen_from_type_int!(u64);
+gen_from_type_int!(u32);
+gen_from_type_int!(u16);
+gen_from_type_int!(u8);
+
+gen_from_type_int!(i64);
+gen_from_type_int!(i32);
+gen_from_type_int!(i16);
+gen_from_type_int!(i8);
+
+macro_rules! gen_from_type_float {
+  ($floattype: ident) => {
+    impl From<$floattype> for PikeThing {
+      fn from(f: $floattype) -> PikeThing {
+      return PikeThing::Float(f.into());
+      }
+    }
+  };
+}
+
+gen_from_type_float!(f64);
+gen_from_type_float!(f32);
+
+
+impl From<String> for PikeThing {
+  fn from(s: String) -> Self {
+    PikeThing::PikeString(s.into())
+  }
+}
+
+impl<'a> From<&'a str> for PikeThing {
+  fn from(s: &str) -> Self {
+    PikeThing::PikeString(s.into())
+  }
+}
+
+impl From<PikeString> for PikeThing {
+    fn from(s: PikeString) -> Self {
+        PikeThing::PikeString(s)
+    }
 }
