@@ -22,6 +22,7 @@ pub enum PikeThing {
 }
 
 impl PikeThing {
+  /// Returns a value from the Pike stack without popping it.
   pub fn get_from_stack (pos: isize) -> Self
   {
     let sval: &svalue;
@@ -31,6 +32,7 @@ impl PikeThing {
     return sval.into();
   }
 
+  /// Pushes a copy of this value to the Pike stack.
   pub fn push_to_stack(&self) {
     let sval: svalue = self.into();
     sval.add_ref();
@@ -41,6 +43,7 @@ impl PikeThing {
     }
   }
 
+  /// Pops the top value from the Pike stack and returns it as a PikeThing.
   pub fn pop_from_stack() -> Self {
     // Ref is transferred, so we won't subtract refs.
     let sval: &svalue;
@@ -55,6 +58,7 @@ impl PikeThing {
     return res;
   }
 
+  /// Pops and discards the specified number of entries from the Pike stack.
   pub fn pop_n_elems(num_elems: usize) {
     unsafe {
       let mut sp = (*Pike_interpreter_pointer).stack_pointer;
@@ -65,6 +69,7 @@ impl PikeThing {
     }
   }
 
+  /// Instantiates a PikeThing representing Pike's UNDEFINED value.
   pub fn undefined() -> Self {
     let sval = svalue::undefined();
     let res: PikeThing = (&sval).into();
