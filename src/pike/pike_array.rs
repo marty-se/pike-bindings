@@ -2,6 +2,7 @@ use ::bindings::*;
 use ::pike::*;
 use ::serde::ser::*;
 
+#[derive(Debug)]
 pub struct PikeArray {
   array: *mut array
 }
@@ -52,7 +53,8 @@ impl Iterator for PikeArrayIterator {
   type Item = (PikeThing);
 
   fn next(&mut self) -> Option<Self::Item> {
-    let ended = self.iterator.call_func("`!", 0).unwrap();
+    let ended = self.iterator.call_func("`!", vec![])
+        .expect("Error calling \"`!\" in iterator");
     match ended {
       PikeThing::Int(i) => {
         if i.integer != 0 {
@@ -62,8 +64,10 @@ impl Iterator for PikeArrayIterator {
       _ => panic!("Wrong type from iterator->`!")
     }
 
-    let val = self.iterator.call_func("value", 0).unwrap();
-    self.iterator.call_func("next", 0);
+    let val = self.iterator.call_func("value", vec![])
+      .expect("Error calling \"value\" in iterator");
+    self.iterator.call_func("next", vec![])
+      .expect("Error calling \"next\" in iterator");
 
     Some(val)
   }

@@ -38,3 +38,6 @@ mod pike_svalue;
 mod pike_thing;
 pub use self::pike_thing::*;
 
+pub mod error;
+
+pub use self::error::PikeError;

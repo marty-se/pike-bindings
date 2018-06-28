@@ -2,6 +2,7 @@ use ::bindings::*;
 use ::bindings::PIKE_T_FLOAT;
 use ::serde::ser::*;
 
+#[derive(Debug)]
 pub struct PikeFloat {
   float_number: f64
 }

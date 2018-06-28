@@ -2,6 +2,7 @@ use ::bindings::*;
 use ::pike::*;
 use ::serde::ser::*;
 
+#[derive(Debug)]
 pub struct PikeMultiset {
   multiset: *mut multiset
 }
@@ -24,7 +25,8 @@ impl Iterator for PikeMultisetIterator {
   type Item = (PikeThing);
 
   fn next(&mut self) -> Option<Self::Item> {
-    let ended = self.iterator.call_func("`!", 0).unwrap();
+    let ended = self.iterator.call_func("`!", vec![])
+        .expect("Error calling \"`!\" in iterator");
     match ended {
       PikeThing::Int(i) => {
         if i.integer != 0 {
@@ -34,8 +36,10 @@ impl Iterator for PikeMultisetIterator {
       _ => panic!("Wrong type from iterator->`!")
     }
 
-    let val = self.iterator.call_func("index", 0).unwrap();
-    self.iterator.call_func("next", 0);
+    let val = self.iterator.call_func("index", vec![])
+        .expect("Error calling \"index\" in iterator");
+    self.iterator.call_func("next", vec![])
+        .expect("Error calling \"next\" in iterator");
 
     Some(val)
   }

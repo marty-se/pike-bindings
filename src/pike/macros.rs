@@ -1,5 +1,6 @@
 macro_rules! def_pike_type {
-  ($rtype:ident, $ptype:ident, $anything_type:ident, $svalue_type:ident, $free_func:ident) => (
+  ($rtype:ident, $ptype:ident, $anything_type:ident, $svalue_type:ident,
+   $free_func:ident) => (
 
   impl $rtype {
     pub fn new($ptype: *mut $ptype) -> Self {

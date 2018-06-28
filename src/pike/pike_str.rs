@@ -1,11 +1,18 @@
 use pike::*;
 use serde::ser::*;
 
+#[derive(Debug)]
 pub struct PikeString {
-  pike_string: *mut pike_string
+    pike_string: *mut pike_string,
 }
 
-def_pike_type!(PikeString, pike_string, string, PIKE_T_STRING, really_free_string);
+def_pike_type!(
+    PikeString,
+    pike_string,
+    string,
+    PIKE_T_STRING,
+    really_free_string
+);
 
 impl PikeString {
     pub fn as_ptr(&self) -> *mut pike_string {

@@ -2,6 +2,7 @@ use ::bindings::*;
 use ::serde::ser::*;
 use std::os::raw::c_long;
 
+#[derive(Debug)]
 pub struct PikeInt {
   pub integer: c_long
 }

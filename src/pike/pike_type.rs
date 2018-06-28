@@ -1,5 +1,6 @@
 use ::bindings::{pike_type, PIKE_T_TYPE, really_free_pike_type};
 
+#[derive(Debug)]
 pub struct PikeType {
   pike_type: *mut pike_type
 }

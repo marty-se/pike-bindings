@@ -1,6 +1,7 @@
 use ::bindings::*;
 use ::serde::ser::*;
 
+#[derive(Debug)]
 pub struct PikeMapping {
   mapping: *mut mapping
 }
@@ -50,7 +51,8 @@ impl Iterator for PikeMappingIterator {
   type Item = (PikeThing, PikeThing);
 
   fn next(&mut self) -> Option<Self::Item> {
-    let ended = self.iterator.call_func("`!", 0).unwrap();
+    let ended = self.iterator.call_func("`!", vec![])
+        .expect("Error calling \"`!\" in iterator");
     match ended {
       PikeThing::Int(i) => {
         if i.integer != 0 {
@@ -60,9 +62,12 @@ impl Iterator for PikeMappingIterator {
       _ => panic!("Wrong type from iterator->`!")
     }
 
-    let idx = self.iterator.call_func("index", 0).unwrap();
-    let val = self.iterator.call_func("value", 0).unwrap();
-    self.iterator.call_func("next", 0);
+    let idx = self.iterator.call_func("index", vec![])
+        .expect("Error calling \"index\" in iterator");
+    let val = self.iterator.call_func("value", vec![])
+        .expect("Error calling \"value\" in iterator");
+    self.iterator.call_func("next", vec![])
+        .expect("Error calling \"next\" in iterator");;
 
     Some((idx, val))
   }
