@@ -31,17 +31,38 @@ impl PikeThing {
     unsafe {
       let sp = (*Pike_interpreter_pointer).stack_pointer;
       ptr::write(sp, sval);
-      (*Pike_interpreter_pointer).stack_pointer = (*Pike_interpreter_pointer).stack_pointer.offset(1);
+      (*Pike_interpreter_pointer).stack_pointer = sp.offset(1);
     }
   }
 
   pub fn pop_from_stack() -> Self {
+    // Ref is transferred, so we won't subtract refs.
     let sval: &svalue;
+    let res: PikeThing;
     unsafe {
       (*Pike_interpreter_pointer).stack_pointer = (*Pike_interpreter_pointer).stack_pointer.offset(-1);
-      sval = &*(*Pike_interpreter_pointer).stack_pointer;
+      let sp = (*Pike_interpreter_pointer).stack_pointer;
+      sval = &*sp;
+      res = sval.into();
+      ptr::write(sp, svalue::undefined());
     }
-    return sval.into();
+    return res;
+  }
+
+  pub fn pop_n_elems(num_elems: usize) {
+    unsafe {
+      let mut sp = (*Pike_interpreter_pointer).stack_pointer;
+      for _ in 0..num_elems {
+        sp = sp.offset(-1);
+        ptr::write(sp, svalue::undefined());
+      }
+    }
+  }
+
+  pub fn undefined() -> Self {
+    let sval = svalue::undefined();
+    let res: PikeThing = (&sval).into();
+    return res;
   }
 }
 
