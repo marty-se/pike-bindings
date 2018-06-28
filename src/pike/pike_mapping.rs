@@ -29,7 +29,7 @@ impl PikeMapping {
 }
 
 pub struct PikeMappingIterator {
-  iterator: PikeObject
+  iterator: PikeObject<()>
 }
 
 impl Iterator for PikeMappingIterator {

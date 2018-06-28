@@ -15,9 +15,9 @@ pub enum PikeThing {
   Int(PikeInt),
   Mapping(PikeMapping),
   Multiset(PikeMultiset),
-  Object(PikeObject),
+  Object(PikeObject<()>),
   PikeString(PikeString),
-  Program(PikeProgram),
+  Program(PikeProgram<()>),
   Type(PikeType)
 }
 

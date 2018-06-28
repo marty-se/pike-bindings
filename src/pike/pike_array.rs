@@ -23,7 +23,7 @@ impl PikeArray {
 }
 
 pub struct PikeArrayIterator {
-  iterator: PikeObject
+  iterator: PikeObject<()>
 }
 
 impl Iterator for PikeArrayIterator {

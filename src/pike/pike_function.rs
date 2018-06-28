@@ -4,7 +4,7 @@ use std::os::raw::c_ushort;
 
 #[derive(Clone)]
 pub struct PikeFunction {
-  pikeobj: PikeObject,
+  pikeobj: PikeObject<()>,
   fun_idx: c_ushort
 }
 
@@ -33,7 +33,7 @@ impl<'a> From<&'a PikeFunction> for svalue {
 
 impl PikeFunction {
   pub fn new(object: *mut object, fun_idx: c_ushort) -> Self {
-    let pikeobj = PikeObject::new(object);
+    let pikeobj = PikeObject::<()>::new(object);
     PikeFunction { pikeobj: pikeobj, fun_idx: fun_idx }
   }
 

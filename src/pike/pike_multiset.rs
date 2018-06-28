@@ -17,7 +17,7 @@ impl PikeMultiset {
 }
 
 pub struct PikeMultisetIterator {
-  iterator: PikeObject
+  iterator: PikeObject<()>
 }
 
 impl Iterator for PikeMultisetIterator {
