@@ -2,6 +2,6 @@
 /target/
 **/*.rs.bk
 Cargo.lock
-/src/bindings/
+/src/bindings/mod.rs
 /rls*.log
 /rls/

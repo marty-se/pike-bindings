@@ -10,6 +10,33 @@ use std::fs::OpenOptions;
 use std::io::prelude::*;
 
 fn main() {
+    generate_pike_bindings();
+    generate_sys_bindings();
+}
+
+fn generate_sys_bindings()
+{
+    // The bindgen::Builder is the main entry point
+    // to bindgen, and lets you build up options for
+    // the resulting bindings.
+    let bindings = bindgen::Builder::default()
+        // The input header we would like to generate
+        // bindings for.
+        .header("src/bindings/sys-bindings-wrapper.h")
+        // Finish the builder and generate the bindings.
+        .generate()
+        // Unwrap the Result and panic on failure.
+        .expect("Unable to generate bindings");
+
+    // Write the bindings to the $OUT_DIR/bindings.rs file.
+    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+    bindings
+        .write_to_file(out_path.join("sys-bindings.rs"))
+        .expect("Couldn't write bindings!");
+}
+
+fn generate_pike_bindings()
+{
     let pike_includes_output = Command::new("pike")
         .arg("-x")
         .arg("module")
