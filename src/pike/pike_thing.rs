@@ -18,7 +18,8 @@ pub enum PikeThing {
   Object(PikeObject<()>),
   PikeString(PikeString),
   Program(PikeProgram<()>),
-  Type(PikeType)
+  Type(PikeType),
+  Undefined
 }
 
 impl PikeThing {

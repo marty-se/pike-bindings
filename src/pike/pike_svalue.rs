@@ -11,7 +11,13 @@ impl<'a> From<&'a svalue> for PikeThing {
         PIKE_T_ARRAY => PikeThing::Array(PikeArray::new(sval.u.array)),
         PIKE_T_FLOAT => PikeThing::Float(PikeFloat::new(sval.u.float_number)),
         PIKE_T_FUNCTION => PikeThing::Function(PikeFunction::new(sval.u.object, subtype)),
-        PIKE_T_INT => PikeThing::Int(PikeInt::new(sval.u.integer)),
+        PIKE_T_INT => {
+          if subtype == NUMBER_UNDEFINED as u16 {
+              PikeThing::Undefined
+          } else {
+              PikeThing::Int(PikeInt::new(sval.u.integer))
+          }
+        },
         PIKE_T_MAPPING => PikeThing::Mapping(PikeMapping::new(sval.u.mapping)),
         PIKE_T_MULTISET => PikeThing::Multiset(PikeMultiset::new(sval.u.multiset)),
         PIKE_T_OBJECT => PikeThing::Object(PikeObject::new(sval.u.object)),
@@ -56,6 +62,9 @@ impl<'a> From<&'a PikeThing> for svalue {
       }
       PikeThing::Type(ref t) => {
         t.into()
+      }
+      PikeThing::Undefined => {
+        svalue::undefined()
       }
     }
   }
