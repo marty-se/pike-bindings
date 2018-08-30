@@ -1,10 +1,10 @@
-use ::bindings::*;
+use ::ffi::*;
 use ::pike::{PikeObject, PikeThing, PikeError};
 use ::pike::error::catch_pike_error;
 use std::ffi::CString;
 use ::std::marker::PhantomData;
 
-pub use ::bindings::{low_add_storage, pike_set_prog_event_callback, PROG_EVENT_INIT, PROG_EVENT_EXIT};
+pub use ::ffi::{low_add_storage, pike_set_prog_event_callback, PROG_EVENT_INIT, PROG_EVENT_EXIT};
 
 #[derive(Debug)]
 pub struct PikeProgram<TStorage>
@@ -84,13 +84,13 @@ impl<TStorage> PikeProgram<TStorage> {
     }
 }
 
-impl<'a, TStorage> From<&'a PikeProgram<TStorage>> for ::bindings::svalue {
+impl<'a, TStorage> From<&'a PikeProgram<TStorage>> for ::ffi::svalue {
     fn from(t: &PikeProgram<TStorage>) -> Self {
-        let a = ::bindings::anything { program: t.program };
-        let t = ::bindings::svalue__bindgen_ty_1__bindgen_ty_1 {
+        let a = ::ffi::anything { program: t.program };
+        let t = ::ffi::svalue__bindgen_ty_1__bindgen_ty_1 {
             type_: PIKE_T_OBJECT as ::std::os::raw::c_ushort, subtype: 0 };
-        let tu = ::bindings::svalue__bindgen_ty_1 {t: t};
-        return ::bindings::svalue {u: a, tu: tu};
+        let tu = ::ffi::svalue__bindgen_ty_1 {t: t};
+        return ::ffi::svalue {u: a, tu: tu};
     }
 }
 

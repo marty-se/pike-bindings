@@ -1,4 +1,4 @@
-use ::bindings::*;
+use ::ffi::*;
 use std::ptr;
 
 #[macro_use]

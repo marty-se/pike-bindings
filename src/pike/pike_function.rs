@@ -1,6 +1,6 @@
 use ::pike::*;
 use ::pike::error::catch_pike_error;
-use ::bindings::PIKE_T_FUNCTION;
+use ::ffi::PIKE_T_FUNCTION;
 use std::os::raw::c_ushort;
 
 #[derive(Clone, Debug)]

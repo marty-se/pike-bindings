@@ -22,7 +22,7 @@ fn generate_sys_bindings()
     let bindings = bindgen::Builder::default()
         // The input header we would like to generate
         // bindings for.
-        .header("src/bindings/sys-bindings-wrapper.h")
+        .header("src/ffi/sys-bindings-wrapper.h")
         // Finish the builder and generate the bindings.
         .generate()
         // Unwrap the Result and panic on failure.
@@ -49,10 +49,6 @@ fn generate_pike_bindings()
     let pike_includes_path = PathBuf::from(pike_includes_str);
 
     let mut builder = bindgen::Builder::default()
-        .raw_line("#![allow(dead_code)]")
-        .raw_line("#![allow(unused_variables)]")
-        .raw_line("#![allow(non_camel_case_types)]")
-        .raw_line("#![allow(non_upper_case_globals)]")
         .whitelist_recursively(true)
 
         // Refcounted Pike types can't be copied without refcount handling, so Clone is implemented instead.
@@ -126,6 +122,10 @@ fn generate_pike_bindings()
         .whitelist_function("debug_clone_object")
         .whitelist_function("program_index_no_free")
 
+        .whitelist_function("pike_threads_allow")
+        .whitelist_function("pike_threads_disallow")
+        .whitelist_function("call_with_interpreter")
+
         .whitelist_var("Pike_compiler")
 
         .whitelist_var("PROG_EVENT_.*")
@@ -139,7 +139,8 @@ fn generate_pike_bindings()
 
     let header_fnames = vec!["array.h", "svalue.h", "mapping.h", "multiset.h",
         "object.h", "program.h", "stralloc.h", "multiset.h", "interpret.h", "las.h",
-        "gc.h", "global.h", "machine.h", "pike_types.h", "builtin_functions.h"];
+        "gc.h", "global.h", "machine.h", "pike_types.h", "builtin_functions.h",
+        "threads.h"];
 
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
 
@@ -187,10 +188,9 @@ fn generate_pike_bindings()
 
     let bindings = builder.generate().expect("Unable to generate bindings");
 
-    let bindings_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set"))
-      .join("src/bindings/");
+    let bindings_dir = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR not set"));
 
     std::fs::create_dir_all(&bindings_dir).expect("Could not create bindings dir");
 
-    bindings.write_to_file(bindings_dir.join("mod.rs")).expect("Couldn't write bindings!");
+    bindings.write_to_file(bindings_dir.join("pike-ffi.rs")).expect("Couldn't write bindings!");
 }

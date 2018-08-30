@@ -2,7 +2,7 @@
 include!(concat!(env!("OUT_DIR"), "/sys-bindings.rs"));
 
 use pike::*;
-use bindings::{JMP_BUF};
+use ffi::{JMP_BUF};
 
 use ::std::os::raw::{c_char, c_int};
 use ::std::ptr::{null_mut};
@@ -68,7 +68,7 @@ pub fn prepare_error_message(message: &str) {
     }
     let cstr = ::std::ffi::CString::new(msg_with_newline)
         .expect("Error message cannot contain NUL bytes");
-    unsafe { ::bindings::push_text(cstr.as_ptr()) }
+    unsafe { ::ffi::push_text(cstr.as_ptr()) }
 }
 
 /// Throws a Pike error.
@@ -83,7 +83,7 @@ pub unsafe fn pike_error() -> ! {
         PikeThing::PikeString(s) => {
             let ps: *mut pike_string = s.as_ptr();
             let fmt_str: *const c_char = ::std::mem::transmute(&((*ps).str));
-            ::bindings::Pike_error(fmt_str);
+            ::ffi::Pike_error(fmt_str);
         }
         _ => {
             panic!("Unexpected type on stack");
@@ -99,15 +99,18 @@ pub unsafe fn pike_error() -> ! {
 /// Pike errors.
 pub fn catch_pike_error<F, TRes>(closure: F) -> Result<TRes, PikeError>
 where F: FnOnce() -> TRes {
-    let mut buf = JMP_BUF {
-        previous: null_mut(),
-        recovery: [0; 38],
-        frame_pointer: null_mut(),
-        stack_pointer: 0,
-        mark_sp: 0,
-        severity: 0,
-        onerror: null_mut()
-    };
+    let mut buf;
+    unsafe {
+        buf = JMP_BUF {
+            previous: null_mut(),
+            recovery: ::std::mem::zeroed(),
+            frame_pointer: null_mut(),
+            stack_pointer: 0,
+            mark_sp: 0,
+            severity: 0,
+            onerror: null_mut()
+        };
+    }
     let setjmp_res: c_int;
     let call_res: Result<TRes, PikeError>;
 
