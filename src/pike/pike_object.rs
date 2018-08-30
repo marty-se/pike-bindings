@@ -25,7 +25,7 @@ impl<TStorage> PikeObject<TStorage> {
     pub fn current_object() -> Self {
         unsafe {
             let obj_ptr = (*(*Pike_interpreter_pointer).frame_pointer).current_object;
-            PikeObject::<TStorage> { object: obj_ptr, _phantom: PhantomData }
+            Self::new(obj_ptr)
         }
     }
 
@@ -56,6 +56,15 @@ impl<TStorage> PikeObject<TStorage> {
         }
     }
 
+    /// Replaces the storage of this object.
+    pub fn update_data(&self, data: TStorage) {
+        unsafe {
+            let ptr = (*self.object).storage as *mut TStorage;
+            ::std::mem::drop(ptr);
+            ::std::ptr::write(ptr, data);
+        }
+    }
+
     /// Returns Pike's master object.
     pub fn get_master() -> Self {
         unsafe {
@@ -64,13 +73,23 @@ impl<TStorage> PikeObject<TStorage> {
     }
 }
 
-impl<'a, TStorage> From<&'a PikeObject<TStorage>> for ::bindings::svalue {
+/// Converts a PikeObject to a generic PikeThing, discarding type information
+/// about the PikeObject's TStorage type.
+impl<TStorage> From<PikeObject<TStorage>> for PikeThing {
+    fn from(t: PikeObject<TStorage>) -> Self {
+        unsafe {
+            PikeThing::Object(::std::mem::transmute(t))
+        }
+    }
+}
+
+impl<'a, TStorage> From<&'a PikeObject<TStorage>> for ::ffi::svalue {
     fn from(t: &PikeObject<TStorage>) -> Self {
-        let a = ::bindings::anything { object: t.object };
-        let t = ::bindings::svalue__bindgen_ty_1__bindgen_ty_1 {
+        let a = ::ffi::anything { object: t.object };
+        let t = ::ffi::svalue__bindgen_ty_1__bindgen_ty_1 {
             type_: PIKE_T_OBJECT as ::std::os::raw::c_ushort, subtype: 0 };
-        let tu = ::bindings::svalue__bindgen_ty_1 {t: t};
-        return ::bindings::svalue {u: a, tu: tu};
+        let tu = ::ffi::svalue__bindgen_ty_1 {t: t};
+        return ::ffi::svalue {u: a, tu: tu};
     }
 }
 
