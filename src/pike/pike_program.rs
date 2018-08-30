@@ -21,47 +21,45 @@ impl<TStorage> PikeProgram<TStorage> {
         PikeProgram { program: program, _phantom: PhantomData }
     }
 
+    /// Instantiates a new program by finishing the current compilation unit.
+    pub fn finish_program() -> Self {
+        let new_prog_ptr: *mut program;
+        unsafe {
+            new_prog_ptr = debug_end_program();
+        };
+        return Self::new(new_prog_ptr);
+    }
+
     pub fn clone_object(&self) -> Result<PikeObject<()>, PikeError> {
         catch_pike_error(|| {
-            unsafe {
-                debug_clone_object(self.program, 0);
-            }
-
-            let pt = PikeThing::pop_from_stack();
-            if let PikeThing::Object(obj) = pt {
-                return obj;
-            }
-            panic!("clone_object didn't return an object");
+              let obj: *mut object;
+              unsafe {
+                  obj = debug_clone_object(self.program, 0);
+              }
+              PikeObject::<()>::new(obj)
         })
     }
 
-    // FIXME: Should return a Result
     pub fn clone_object_with_data(&self, data: TStorage)
       -> Result<PikeObject<TStorage>, PikeError> {
           catch_pike_error(|| {
+              let obj: *mut object;
               unsafe {
-                  debug_clone_object(self.program, 0);
+                  obj = debug_clone_object(self.program, 0);
               }
+              let res_obj = PikeObject::<TStorage>::new(obj);
 
-              let pt = PikeThing::pop_from_stack();
-              if let PikeThing::Object(obj) = pt {
-                  // We know that the cloned object's TStorage type
-                  // is equivalent to that of the program, but since
-                  // we can't pass that type information through the C API
-                  // we have to transmute.
-                  let res: PikeObject<TStorage>;
-                  unsafe { res = ::std::mem::transmute(obj); }
-                  {
-                      let storage: &mut TStorage = res.wrapped();
-                      *storage = data;
+              {
+                  let storage = res_obj.wrapped();
+                  unsafe {
+                      ::std::ptr::write(storage, data);
                   }
-                  return res;
               }
-              panic!("clone_object didn't return an object");
+              res_obj
           })
     }
-
-    pub fn index(&self, index: &str) -> PikeThing {
+/*
+    pub fn index(&self, index: &str) -> Option<PikeThing> {
         let mut index_prog_sval: svalue = self.into();
         let index_val_thing: PikeThing = index.into();
         let mut index_val: svalue = (&index_val_thing).into();
@@ -70,8 +68,13 @@ impl<TStorage> PikeProgram<TStorage> {
             program_index_no_free(&mut res, &mut index_prog_sval,
                 &mut index_val);
         }
-        (&res).into()
+        let pt: PikeThing = (&res).into();
+        match pt {
+            PikeThing::Undefined => None,
+            _ => Some(pt)
+        }
     }
+    */
 
     /// Returns the program that is currently being compiled.
     pub fn current_compilation() -> Self {
@@ -80,6 +83,15 @@ impl<TStorage> PikeProgram<TStorage> {
                 program: (*Pike_compiler).new_program,
                 _phantom: PhantomData
             }
+        }
+    }
+
+    /// Adds the provided program to the program currently being compiled,
+    /// with the provided name.
+    pub fn add_program_constant(name: &str, prog: Self) {
+        let cname = ::std::ffi::CString::new(name).unwrap();
+        unsafe {
+            add_program_constant(cname.as_ptr(), prog.program, 0);
         }
     }
 }
@@ -116,7 +128,34 @@ impl<TStorage> Drop for PikeProgram<TStorage> {
     }
 }
 
-unsafe extern "C" fn prog_event_callback<TStorage>(event: i32)
+unsafe extern "C" fn prog_event_callback<TStorage>(event: i32) {
+    match event as u32 {
+      PROG_EVENT_INIT => {
+        let storage_data: TStorage = ::std::mem::zeroed();
+        let storage_ptr = (*(*Pike_interpreter_pointer).frame_pointer).current_storage
+          as *mut TStorage;
+        ::std::ptr::write(storage_ptr, storage_data);
+      },
+      PROG_EVENT_EXIT => {
+          let storage = (*(*Pike_interpreter_pointer).frame_pointer).current_storage
+            as *mut TStorage;
+          ::std::mem::drop(storage);
+      },
+      _ => {}
+    }
+}
+
+// Calling this function is unsafe because object storage is zeroed on
+// initialization. Thus, clone_object_with_data must be used to initialize
+// storage when an object is instantiated.
+pub unsafe fn start_new_program<TStorage>(filename: &str, line: u32) {
+    let fname = ::std::ffi::CString::new(filename).unwrap();
+    debug_start_new_program(line as i64, fname.as_ptr());
+    low_add_storage(::std::mem::size_of::<TStorage>(), ::std::mem::align_of::<TStorage>(), 0);
+    pike_set_prog_event_callback(Some(prog_event_callback::<TStorage>));
+}
+
+unsafe extern "C" fn prog_event_callback_default<TStorage>(event: i32)
   where TStorage: Default {
     match event as u32 {
       PROG_EVENT_INIT => {
@@ -134,13 +173,13 @@ unsafe extern "C" fn prog_event_callback<TStorage>(event: i32)
     }
 }
 
-pub fn start_new_program<TStorage>(filename: &str, line: u32)
+pub fn start_new_program_with_default<TStorage>(filename: &str, line: u32)
   where TStorage: Default {
   unsafe {
     let fname = ::std::ffi::CString::new(filename).unwrap();
     debug_start_new_program(line as i64, fname.as_ptr());
     low_add_storage(::std::mem::size_of::<TStorage>(), ::std::mem::align_of::<TStorage>(), 0);
-    pike_set_prog_event_callback(Some(prog_event_callback::<TStorage>));
+    pike_set_prog_event_callback(Some(prog_event_callback_default::<TStorage>));
   }
 }
 
@@ -149,12 +188,6 @@ pub fn end_class(name: &str) {
   unsafe {
     let prog: *mut program = debug_end_program();
     add_program_constant(class_name.as_ptr(), prog, 0);
-  }
-}
-
-pub fn set_prog_event_callback(fun: unsafe extern "C" fn(i32) -> ()) {
-  unsafe {
-    pike_set_prog_event_callback(Some(fun));
   }
 }
 
