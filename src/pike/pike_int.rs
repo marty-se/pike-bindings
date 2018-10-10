@@ -2,47 +2,48 @@ use ::ffi::*;
 use ::serde::ser::*;
 use std::os::raw::c_long;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PikeInt {
-  pub integer: c_long
+    pub integer: c_long
 }
 
 impl PikeInt {
-  pub fn new(i: c_long) -> Self {
-    PikeInt { integer: i }
-  }
+    pub fn new(i: c_long) -> Self {
+        PikeInt { integer: i }
+    }
 }
 
 impl<'a> From<&'a PikeInt> for svalue {
-  fn from (i: &PikeInt) -> Self {
-    let a = ::ffi::anything { integer: i.integer };
-    let t = ::ffi::svalue__bindgen_ty_1__bindgen_ty_1 {
-      type_: PIKE_T_INT as ::std::os::raw::c_ushort, subtype: 0 };
-    let tu = ::ffi::svalue__bindgen_ty_1 {t: t};
-    return ::ffi::svalue {u: a, tu: tu};
-  }
+    fn from (i: &PikeInt) -> Self {
+        let a = ::ffi::anything { integer: i.integer };
+        let t = ::ffi::svalue__bindgen_ty_1__bindgen_ty_1 {
+            type_: PIKE_T_INT as ::std::os::raw::c_ushort, subtype: 0
+        };
+        let tu = ::ffi::svalue__bindgen_ty_1 {t: t};
+        return ::ffi::svalue {u: a, tu: tu};
+    }
 }
 
 macro_rules! gen_from_type {
-  ($inttype: ident) => {
-    impl From<$inttype> for PikeInt {
-      fn from(i: $inttype) -> PikeInt {
-        // FIXME: Lossy conversion of u64
-        // (and i64 + u32 on 32-bit machines).
-        return PikeInt::new(i as c_long);
-      }
-    }
-    impl From<PikeInt> for $inttype {
-      fn from (i: PikeInt) -> $inttype {
-        return i.integer as $inttype;
-      }
-    }
-    impl<'a> From<&'a PikeInt> for $inttype {
-      fn from (i: &'a PikeInt) -> $inttype {
-        return i.integer as $inttype;
-      }
-    }
-  };
+    ($inttype: ident) => {
+        impl From<$inttype> for PikeInt {
+            fn from(i: $inttype) -> PikeInt {
+                // FIXME: Lossy conversion of u64
+                // (and i64 + u32 on 32-bit machines).
+                return PikeInt::new(i as c_long);
+            }
+        }
+        impl From<PikeInt> for $inttype {
+            fn from (i: PikeInt) -> $inttype {
+                return i.integer as $inttype;
+            }
+        }
+        impl<'a> From<&'a PikeInt> for $inttype {
+            fn from (i: &'a PikeInt) -> $inttype {
+                return i.integer as $inttype;
+            }
+        }
+    };
 }
 
 gen_from_type!(u64);

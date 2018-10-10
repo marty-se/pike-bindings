@@ -1,73 +1,147 @@
 use ::pike::*;
+pub use ::ffi::svalue;
+use ::ffi::{PIKE_T_FLOAT, PIKE_T_INT, PIKE_T_ARRAY, PIKE_T_FUNCTION,
+    PIKE_T_MAPPING, PIKE_T_MULTISET, PIKE_T_OBJECT, PIKE_T_PROGRAM, PIKE_T_TYPE,
+	PIKE_T_FREE, PIKE_T_STRING, NUMBER_UNDEFINED};
 
-impl<'a> From<&'a svalue> for PikeThing {
-  fn from (sval: &svalue) -> Self {
-    let type_;
-    let subtype;
-    unsafe {
-      type_ = sval.tu.t.type_;
-      subtype = sval.tu.t.subtype;
-      match type_ as u32 {
-        PIKE_T_ARRAY => PikeThing::Array(PikeArray::new(sval.u.array)),
-        PIKE_T_FLOAT => PikeThing::Float(PikeFloat::new(sval.u.float_number)),
-        PIKE_T_FUNCTION => PikeThing::Function(PikeFunction::new(sval.u.object, subtype)),
-        PIKE_T_INT => {
-          if subtype == NUMBER_UNDEFINED as u16 {
-              PikeThing::Undefined
-          } else {
-              PikeThing::Int(PikeInt::new(sval.u.integer))
-          }
-        },
-        PIKE_T_MAPPING => PikeThing::Mapping(PikeMapping::new(sval.u.mapping)),
-        PIKE_T_MULTISET => PikeThing::Multiset(PikeMultiset::new(sval.u.multiset)),
-        PIKE_T_OBJECT => PikeThing::Object(PikeObject::new(sval.u.object)),
-        PIKE_T_STRING => PikeThing::PikeString(PikeString::new(sval.u.string)),
-        PIKE_T_PROGRAM => PikeThing::Program(PikeProgram::new(sval.u.program)),
-        PIKE_T_TYPE => PikeThing::Type(PikeType::new(sval.u.type_)),
-        _ => panic!("Unknown Pike type.")
-      }
+impl From<svalue> for PikeThing {
+    fn from (sval: svalue) -> Self {
+        let type_ = unsafe { sval.tu.t.type_ };
+        let subtype = unsafe { sval.tu.t.subtype };
+        let res = match type_ as u32 {
+            PIKE_T_ARRAY => {
+                PikeThing::Array(
+                    unsafe {
+                        PikeArrayRef::new_without_ref(sval.u.array)
+                    })
+            },
+            PIKE_T_FLOAT => {
+                PikeThing::Float(PikeFloat::new(
+                    unsafe { sval.u.float_number }))
+            },
+            PIKE_T_FUNCTION => {
+                PikeThing::Function(
+                    unsafe {
+                        PikeFunctionRef::new_without_ref(sval.u.object, subtype)
+                    })
+			},
+			PIKE_T_INT => {
+                if subtype == NUMBER_UNDEFINED as u16 {
+                    PikeThing::Undefined
+                } else {
+                    PikeThing::Int(PikeInt::new(
+                        unsafe { sval.u.integer }))
+                }
+            },
+            PIKE_T_MAPPING => {
+                PikeThing::Mapping(
+					unsafe {
+                        PikeMappingRef::new_without_ref(sval.u.mapping)
+                    })
+            },
+            PIKE_T_MULTISET => {
+                PikeThing::Multiset(
+					unsafe {
+                        PikeMultisetRef::new_without_ref(sval.u.multiset)
+                    })
+            },
+            PIKE_T_OBJECT => {
+                PikeThing::Object(
+					unsafe {
+                        PikeObjectRef::<()>::new_without_ref(sval.u.object)
+                    })
+            },
+            PIKE_T_STRING => {
+                PikeThing::PikeString(
+					unsafe {
+                        PikeStringRef::new_without_ref(sval.u.string)
+                    })
+            },
+            PIKE_T_PROGRAM => {
+                PikeThing::Program(
+					unsafe {
+                        PikeProgramRef::<()>::new_without_ref(sval.u.program)
+                    })
+            },
+            PIKE_T_TYPE => {
+                PikeThing::Type(PikeTypeRef::new_without_ref(
+                    unsafe { sval.u.type_ }))
+            },
+            _ => panic!("Unknown Pike type.")
+        };
+
+		// Reference is transferred - forget sval to avoid calling Drop
+		// destructor. This allows this code to be called without a PikeContext
+		// -- i.e. without holding the Pike interpreter lock.
+        ::std::mem::forget(sval);
+        res
     }
-  }
 }
 
-impl<'a> From<&'a PikeThing> for svalue {
-  fn from (pike_thing: &PikeThing) -> Self {
-    match *pike_thing {
-      PikeThing::Array(ref a) => {
-        a.into()
-      }
-      PikeThing::Float(ref f) => {
-        f.into()
-      }
-      PikeThing::Function(ref f) => {
-        f.into()
-      }
-      PikeThing::Int(ref i) => {
-        i.into()
-      }
-      PikeThing::Mapping(ref m) => {
-        m.into()
-      }
-      PikeThing::Multiset(ref m) => {
-        m.into()
-      }
-      PikeThing::Object(ref o) => {
-        o.into()
-      }
-      PikeThing::PikeString(ref s) => {
-        s.into()
-      }
-      PikeThing::Program(ref p) => {
-        p.into()
-      }
-      PikeThing::Type(ref t) => {
-        t.into()
-      }
-      PikeThing::Undefined => {
-        svalue::undefined()
-      }
+impl From<PikeThing> for svalue {
+    fn from (pike_thing: PikeThing) -> Self {
+        let mut u = ::ffi::anything { integer: 0 };
+        let type_: u32;
+		let mut subtype: u16 = 0;
+
+        match pike_thing {
+            PikeThing::Array(ref a) => {
+				u.array = a.as_mut_ptr();
+				type_ = PIKE_T_ARRAY;
+            }
+            PikeThing::Float(ref f) => {
+                u.float_number = f.into();
+				type_ = PIKE_T_FLOAT;
+            }
+            PikeThing::Function(ref f) => {
+                u.object = f.object_ptr();
+				type_ = PIKE_T_FUNCTION;
+				subtype = f.function_index();
+            }
+            PikeThing::Int(ref i) => {
+				u.integer = i.into();
+                type_ = PIKE_T_INT;
+            }
+            PikeThing::Mapping(ref m) => {
+                u.mapping = m.as_mut_ptr();
+				type_ = PIKE_T_MAPPING;
+            }
+            PikeThing::Multiset(ref m) => {
+                u.multiset = m.as_mut_ptr();
+				type_ = PIKE_T_MULTISET;
+            }
+            PikeThing::Object(ref o) => {
+                u.object = o.as_mut_ptr();
+				type_ = PIKE_T_OBJECT;
+            }
+            PikeThing::PikeString(ref s) => {
+                u.string = s.as_mut_ptr();
+				type_ = PIKE_T_STRING;
+            }
+            PikeThing::Program(ref p) => {
+                u.program = p.as_mut_ptr();
+				type_ = PIKE_T_PROGRAM;
+            }
+            PikeThing::Type(ref t) => {
+                u.type_ = t.as_mut_ptr();
+				type_ = PIKE_T_TYPE;
+            }
+            PikeThing::Undefined => {
+                return svalue::undefined();
+            }
+        }
+
+        // The ref is transferred, so we don't want to run the destructor (for
+		// reference types).
+		// This enables ref transferring without holding Pike's interpreter lock.
+		::std::mem::forget(pike_thing);
+
+        let t = ::ffi::svalue__bindgen_ty_1__bindgen_ty_1 {
+            type_: type_ as ::std::os::raw::c_ushort,
+            subtype: subtype };
+        let tu = ::ffi::svalue__bindgen_ty_1 {t: t};
+        ::ffi::svalue {u: u, tu: tu}
     }
-  }
 }
 
 impl ::std::default::Default for svalue {
@@ -77,57 +151,70 @@ impl ::std::default::Default for svalue {
 }
 
 impl svalue {
-  pub fn undefined() -> Self {
-    let a = ::ffi::anything { integer: 0 };
-    let t = ::ffi::svalue__bindgen_ty_1__bindgen_ty_1 {
-      type_: PIKE_T_INT as ::std::os::raw::c_ushort, subtype: NUMBER_UNDEFINED as u16 };
-    let tu = ::ffi::svalue__bindgen_ty_1 {t: t};
-    return ::ffi::svalue {u: a, tu: tu};
-  }
-
-  pub fn add_ref(&self) -> Option<usize> {
-    if self.refcounted_type() {
-      unsafe {
-        let r = self.u.dummy;
-        (*r).refs += 1;
-        return Some((*r).refs as usize);
-      }
+    pub fn undefined() -> Self {
+        let a = ::ffi::anything { integer: 0 };
+        let t = ::ffi::svalue__bindgen_ty_1__bindgen_ty_1 {
+            type_: PIKE_T_INT as ::std::os::raw::c_ushort,
+            subtype: NUMBER_UNDEFINED as u16 };
+        let tu = ::ffi::svalue__bindgen_ty_1 {t: t};
+        return ::ffi::svalue {u: a, tu: tu};
     }
-    return None;
-  }
 
-  pub fn sub_ref(&self) -> Option<usize> {
-    if self.refcounted_type() {
-      unsafe {
-        let r = self.u.dummy;
-        (*r).refs -= 1;
-        return Some((*r).refs as usize);
-      }
+    pub fn clone(&self, ctx: &PikeContext) -> Self {
+        let t = unsafe { ::ffi::svalue__bindgen_ty_1__bindgen_ty_1 {
+            type_: self.tu.t.type_,
+            subtype: self.tu.t.subtype }
+        };
+        let tu = ::ffi::svalue__bindgen_ty_1 {t: t};
+
+        let u = ::ffi::anything { array: unsafe { self.u.array }};
+
+        let mut res = svalue { u: u, tu: tu };
+        res.add_ref(ctx);
+        res
     }
-    return None;
-  }
 
-  pub fn mark_free(&mut self) -> () {
-      unsafe {
-          self.tu.t.type_ = PIKE_T_FREE as u16;
-      }
-  }
-
-  fn type_(&self) -> u16 {
-    unsafe {
-      return self.tu.t.type_;
+    pub fn add_ref(&mut self, _ctx: &PikeContext) -> Option<usize> {
+        if self.refcounted_type() {
+            unsafe {
+                let r = self.u.dummy;
+                (*r).refs += 1;
+                return Some((*r).refs as usize);
+            }
+        }
+        None
     }
-  }
 
-  #[allow(dead_code)]
-  fn subtype(&self) -> u16 {
-    unsafe {
-      return self.tu.t.type_;
+    pub fn sub_ref(&mut self, _ctx: &PikeContext) -> Option<usize> {
+        if self.refcounted_type() {
+            unsafe {
+                let r = self.u.dummy;
+                (*r).refs -= 1;
+                return Some((*r).refs as usize);
+            }
+        }
+        None
     }
-  }
 
-  fn refcounted_type(&self) -> bool {
-    // Equivalent of REFCOUNTED_TYPE macro in svalue.h
-    return (self.type_() & !(PIKE_T_ARRAY as u16 - 1)) != 0;
-  }
+    pub fn mark_free(&mut self) -> () {
+        unsafe {
+            self.tu.t.type_ = PIKE_T_FREE as u16;
+        }
+    }
+
+    fn type_(&self) -> u16 {
+        unsafe {
+            self.tu.t.type_
+        }
+    }
+
+    #[allow(dead_code)]
+    fn subtype(&self) -> u16 {
+        return unsafe { self.tu.t.subtype }
+    }
+
+    fn refcounted_type(&self) -> bool {
+        // Equivalent of REFCOUNTED_TYPE macro in svalue.h
+        (self.type_() & !(PIKE_T_ARRAY as u16 - 1)) != 0
+    }
 }

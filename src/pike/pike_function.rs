@@ -1,61 +1,67 @@
 use ::pike::*;
-use ::pike::error::catch_pike_error;
-use ::ffi::PIKE_T_FUNCTION;
+use ::pike::interpreter::PikeContext;
+use ::ffi::{svalue, apply_svalue, object};
 use std::os::raw::c_ushort;
 
-#[derive(Clone, Debug)]
-pub struct PikeFunction {
-  pikeobj: PikeObject<()>,
+#[derive(Debug)]
+pub struct PikeFunctionRef {
+  pikeobj: PikeObjectRef<()>,
   fun_idx: c_ushort
 }
 
-impl From<PikeFunction> for PikeThing {
-  fn from(f: PikeFunction) -> PikeThing {
-    PikeThing::Function(f)
-  }
-}
-
-impl<'a> From<&'a PikeFunction> for PikeThing {
-  fn from(f: &PikeFunction) -> PikeThing {
-    PikeThing::Function(f.clone())
-  }
-}
-
-impl<'a> From<&'a PikeFunction> for svalue {
-  fn from (f: &PikeFunction) -> Self {
-    let mut s: svalue = (&f.pikeobj).into();
-    unsafe {
-      s.tu.t.type_ = PIKE_T_FUNCTION as c_ushort;
-      s.tu.t.subtype = f.fun_idx;
+impl PikeFunctionRef {
+    pub fn new(object: *mut object, fun_idx: c_ushort, ctx: &PikeContext)
+    -> Self {
+        let pikeobj = PikeObjectRef::<()>::new(object, ctx);
+        PikeFunctionRef { pikeobj: pikeobj, fun_idx: fun_idx }
     }
-    s
-  }
-}
 
-impl From<PikeFunction> for Box<Fn(PikeThing) -> Result<PikeThing, PikeError>> {
-  fn from (f: PikeFunction) -> Self {
-    let res: Box<Fn(PikeThing) -> Result<PikeThing, PikeError>> = Box::new(move |arg1| f.call(vec![&arg1]));
-    res
-  }
-}
-
-impl PikeFunction {
-  pub fn new(object: *mut object, fun_idx: c_ushort) -> Self {
-    let pikeobj = PikeObject::<()>::new(object);
-    PikeFunction { pikeobj: pikeobj, fun_idx: fun_idx }
-  }
-
-  pub fn call(&self, args: Vec<&PikeThing>) -> Result<PikeThing, PikeError> {
-    for a in &args {
-      a.push_to_stack();
+    pub fn new_without_ref(object: *mut object, fun_idx: c_ushort)
+    -> Self {
+        let pikeobj = PikeObjectRef::<()>::new_without_ref(object);
+        PikeFunctionRef { pikeobj: pikeobj, fun_idx: fun_idx }
     }
-    let mut func: svalue = self.into();
-    let num_args = args.len() as i32;
-    catch_pike_error(|| {
-        unsafe {
-            apply_svalue(&mut func, num_args);
+
+    // Cannot implement regular Clone trait since we need a &PikeContext
+    // argument.
+    pub fn clone(&self, ctx: &PikeContext) -> Self {
+        Self { pikeobj: self.pikeobj.clone(ctx), fun_idx: self.fun_idx }
+    }
+
+    pub fn object_ptr(&self) -> *mut object {
+        self.pikeobj.as_mut_ptr()
+    }
+
+    pub fn function_index(&self) -> u16 {
+        self.fun_idx
+    }
+}
+
+#[derive(Debug)]
+pub struct PikeFunction<'ctx> {
+  func_ref: PikeFunctionRef,
+  ctx: &'ctx PikeContext
+}
+
+define_from_impls!(PikeFunctionRef, PikeFunction, Function, func_ref);
+
+impl<'ctx> PikeFunction<'ctx> {
+    pub fn new(object: *mut object, fun_idx: c_ushort, ctx: &'ctx PikeContext)
+    -> Self {
+        PikeFunction { func_ref: PikeFunctionRef::new(object, fun_idx, ctx), ctx }
+    }
+
+    pub fn call(&self, args: Vec<PikeThing>) -> Result<PikeThing, PikeError> {
+        let num_args = args.len() as i32;
+        for a in args {
+            self.ctx.push_to_stack(a);
         }
-        PikeThing::pop_from_stack()
-    })
-  }
+        let mut func: svalue = self.into();
+        self.ctx.catch_pike_error(|| {
+            unsafe {
+                apply_svalue(&mut func, num_args);
+            }
+            self.ctx.pop_from_stack()
+        })
+    }
 }

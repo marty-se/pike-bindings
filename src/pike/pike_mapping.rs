@@ -1,53 +1,136 @@
-use ::bindings::*;
+use ::pike::*;
 use ::serde::ser::*;
+use ::pike::interpreter::DropWithContext;
+use ::ffi::{mapping, really_free_mapping, debug_allocate_mapping,
+    mapping_insert, f_aggregate_mapping, f_get_iterator, svalue};
+
+// Raw pointers (e.g. *mut mapping) are not Send-safe by default.
+// However, we know that Pike won't free the mapping, leaving the pointer
+// dangling, as long as we don't decrement the refcount we incremented in
+// ::new().
+unsafe impl Send for PikeMappingRef {}
+unsafe impl Send for DeferredMappingDrop {}
 
 #[derive(Debug)]
-pub struct PikeMapping {
-  mapping: *mut mapping
+pub struct PikeMappingRef {
+    mapping: *mut mapping
 }
 
-def_pike_type!(PikeMapping, mapping, mapping, PIKE_T_MAPPING, really_free_mapping);
-
-use ::pike::*;
-
-impl PikeMapping {
-  pub fn with_capacity(size: usize) -> Self {
-      unsafe {
-          PikeMapping { mapping: debug_allocate_mapping(size as i32) }
-      }
-  }
-
-  pub fn insert (&self, key: &PikeThing, val: &PikeThing) {
-      let key_sval: svalue = key.into();
-      let val_sval: svalue = val.into();
-      unsafe {
-          mapping_insert (self.mapping, &key_sval, &val_sval);
-      }
-  }
-
-  pub fn aggregate_from_stack(num_entries: usize) -> Self {
-    unsafe {
-      f_aggregate_mapping(num_entries as i32); // Aggregates a mapping and pushes it to the Pike stack.
+impl PikeMappingRef {
+    pub fn new(mapping: *mut mapping, _ctx: &PikeContext) -> Self {
+        unsafe {
+            (*mapping).refs += 1;
+        }
+        Self { mapping: mapping }
     }
-    let res_thing = PikeThing::pop_from_stack();
-    match res_thing {
-      PikeThing::Mapping(m) => { m },
-      _ => { panic!("Wrong type returned from f_aggregate_mapping"); }
-    }
-  }
 
-  pub fn len(&self) -> usize {
-    unsafe {
-      (*(*self.mapping).data).size as usize
+    pub fn new_without_ref(mapping: *mut mapping) -> Self {
+        Self { mapping: mapping }
     }
-  }
+
+    // Cannot implement regular Clone trait since we need a &PikeContext
+    // argument.
+    pub fn clone(&self, ctx: &PikeContext) -> Self {
+        Self::new(self.mapping, ctx)
+    }
+
+    pub fn unwrap<'ctx>(self, ctx: &'ctx PikeContext) -> PikeMapping<'ctx> {
+        PikeMapping { mapping_ref: self, ctx: ctx }
+    }
+
+    pub fn as_mut_ptr(&self) -> *mut mapping {
+        self.mapping
+    }
 }
 
-pub struct PikeMappingIterator {
-  iterator: PikeObject<()>
+impl Drop for PikeMappingRef {
+    fn drop(&mut self) {
+        // This may be called anywhere, but we may only decrease refs (and
+        // potentially free) while the interpreter lock is held. However, we
+        // don't want to acquire the lock here, both for performance reasons and
+        // potential locking order predictability issues. Instead, we'll
+        // transfer the pointer to a new struct that we send to
+        // drop_with_context().
+        // Note: our contribution to the reference counter of the raw
+        // mapping struct is transferred to the DeferredMappingDrop here.
+        let new_ref = DeferredMappingDrop { mapping: self.mapping };
+        ::pike::interpreter::drop_with_context(new_ref);
+    }
 }
 
-impl Iterator for PikeMappingIterator {
+struct DeferredMappingDrop {
+    mapping: *mut mapping
+}
+
+impl DropWithContext for DeferredMappingDrop {
+    fn drop_with_context(&self, ctx: &PikeContext) {
+        let ptr = self.mapping;
+        unsafe {
+            (*ptr).refs -= 1;
+            if (*ptr).refs == 0 {
+                really_free_mapping(ptr);
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct PikeMapping<'a> {
+    mapping_ref: PikeMappingRef,
+    ctx: &'a PikeContext
+}
+
+define_from_impls!(PikeMappingRef, PikeMapping, Mapping, mapping_ref);
+
+impl<'ctx> PikeMapping<'ctx> {
+    pub fn from_ref(mapping_ref: PikeMappingRef, ctx: &'ctx PikeContext) -> Self {
+        Self { mapping_ref: mapping_ref, ctx: ctx }
+    }
+
+    pub fn with_capacity(size: usize, ctx: &'ctx PikeContext) -> Self {
+        let new_mapping = unsafe { debug_allocate_mapping(size as i32) };
+        PikeMapping {
+            mapping_ref: PikeMappingRef {
+                mapping: new_mapping
+            },
+            ctx: ctx
+        }
+    }
+
+    pub fn insert (&self, key: PikeThing, val: PikeThing) {
+        let key_sval: svalue = key.into();
+        let val_sval: svalue = val.into();
+        unsafe {
+            mapping_insert (self.mapping_ref.mapping, &key_sval, &val_sval);
+        }
+    }
+
+    pub fn aggregate_from_stack(
+        num_entries: usize,
+        ctx: &'ctx PikeContext) -> Self {
+        unsafe {
+            // Aggregates a mapping and pushes it to the Pike stack.
+            f_aggregate_mapping(num_entries as i32);
+        }
+        let res_thing = ctx.pop_from_stack();
+        match res_thing {
+            PikeThing::Mapping(m) => { Self::from_ref(m, ctx) },
+            _ => { panic!("Wrong type returned from f_aggregate_mapping"); }
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        unsafe {
+            (*(*self.mapping_ref.mapping).data).size as usize
+        }
+    }
+}
+
+pub struct PikeMappingIterator<'ctx> {
+    iterator: PikeObject<'ctx, ()>
+}
+
+impl<'ctx> Iterator for PikeMappingIterator<'ctx> {
   type Item = (PikeThing, PikeThing);
 
   fn next(&mut self) -> Option<Self::Item> {
@@ -73,47 +156,49 @@ impl Iterator for PikeMappingIterator {
   }
 }
 
-impl IntoIterator for PikeMapping {
+impl<'ctx> IntoIterator for PikeMapping<'ctx> {
   type Item = (PikeThing, PikeThing);
-  type IntoIter = PikeMappingIterator;
+  type IntoIter = PikeMappingIterator<'ctx>;
 
   fn into_iter(self) -> Self::IntoIter {
-    let thing = PikeThing::Mapping(self);
-    thing.push_to_stack();
+    let ctx = self.ctx;
+    let thing = PikeThing::Mapping(self.mapping_ref);
+    ctx.push_to_stack(thing);
     unsafe { f_get_iterator(1); }
-    match PikeThing::pop_from_stack() {
+    match ctx.pop_from_stack() {
       PikeThing::Object(it) => {
-        PikeMappingIterator { iterator: it }
+        PikeMappingIterator::<'ctx> { iterator: it.unwrap(ctx) }
       }
       _ => panic!("Wrong type returned from f_get_iterator")
     }
   }
 }
 
-impl<'a> IntoIterator for &'a PikeMapping {
-  type Item = (PikeThing, PikeThing);
-  type IntoIter = PikeMappingIterator;
+impl<'a> IntoIterator for &'a PikeMapping<'a> {
+    type Item = (PikeThing, PikeThing);
+    type IntoIter = PikeMappingIterator<'a>;
 
-  fn into_iter(self) -> Self::IntoIter {
-    let thing = PikeThing::Mapping(self.clone());
-    thing.push_to_stack();
-    unsafe { f_get_iterator(1); }
-    match PikeThing::pop_from_stack() {
-      PikeThing::Object(it) => {
-        PikeMappingIterator { iterator: it }
-      }
-      _ => panic!("Wrong type returned from f_get_iterator")
+    fn into_iter(self) -> Self::IntoIter {
+        let ctx = self.ctx;
+        let thing = PikeThing::Mapping(self.mapping_ref.clone(ctx));
+        ctx.push_to_stack(thing);
+        unsafe { f_get_iterator(1); }
+        match ctx.pop_from_stack() {
+            PikeThing::Object(it) => {
+                PikeMappingIterator { iterator: it.unwrap(ctx) }
+            }
+            _ => panic!("Wrong type returned from f_get_iterator")
+        }
     }
-  }
 }
 
-impl Serialize for PikeMapping {
+impl<'a> Serialize for PikeMapping<'a> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where S: Serializer
     {
         let mut map = serializer.serialize_map(Some(self.len()))?;
         for (k, v) in self {
-            map.serialize_entry(&k, &v)?;
+            map.serialize_entry(&k.unwrap(self.ctx), &v.unwrap(self.ctx))?;
         }
         map.end()
     }

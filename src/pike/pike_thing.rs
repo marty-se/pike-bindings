@@ -1,4 +1,5 @@
 use ::pike::*;
+use ::pike::pike_svalue::svalue;
 use ::serde::ser::*;
 use ::serde::*;
 
@@ -6,96 +7,95 @@ use std::fmt;
 
 use serde::de::{Visitor, MapAccess, SeqAccess};
 
-/// The `PikeThing` type. Equivalent to Pike's `svalue` type, with Rust idioms.
 #[derive(Debug)]
 pub enum PikeThing {
-  Array(PikeArray),
-  Float(PikeFloat),
-  Function(PikeFunction),
-  Int(PikeInt),
-  Mapping(PikeMapping),
-  Multiset(PikeMultiset),
-  Object(PikeObject<()>),
-  PikeString(PikeString),
-  Program(PikeProgram<()>),
-  Type(PikeType),
-  Undefined
+    Array(PikeArrayRef),
+    Float(PikeFloat),
+    Function(PikeFunctionRef),
+    Int(PikeInt),
+    Mapping(PikeMappingRef),
+    Multiset(PikeMultisetRef),
+    Object(PikeObjectRef<()>),
+    PikeString(PikeStringRef),
+    Program(PikeProgramRef<()>),
+    Type(PikeTypeRef),
+    Undefined
+}
+
+/// The `PikeThing` type. Equivalent to Pike's `svalue` type, with Rust idioms.
+#[derive(Debug)]
+pub struct PikeThingWithCtx<'ctx> {
+    thing: PikeThing,
+    ctx: &'ctx PikeContext
 }
 
 impl PikeThing {
-  /// Returns a value from the Pike stack without popping it.
-  pub fn get_from_stack (pos: isize) -> Self
-  {
-    let sval: &svalue;
-    unsafe {
-      sval = &*(*Pike_interpreter_pointer).stack_pointer.offset(pos);
+    pub fn from_svalue_ref(sval: &svalue, ctx: &PikeContext) -> Self {
+        let new_sval: svalue = sval.clone(ctx);
+        new_sval.into()
     }
-    return sval.into();
-  }
 
-  /// Pushes a copy of this value to the Pike stack.
-  pub fn push_to_stack(&self) {
-    let sval: svalue = self.into();
-    sval.add_ref();
-    unsafe {
-      let sp = (*Pike_interpreter_pointer).stack_pointer;
-      ptr::write(sp, sval);
-      (*Pike_interpreter_pointer).stack_pointer = sp.offset(1);
+    /// Instantiates a PikeThing representing Pike's UNDEFINED value.
+    pub fn undefined() -> Self {
+        let sval = svalue::undefined();
+        let res: PikeThing = sval.into();
+        return res;
     }
-  }
 
-  /// Pops the top value from the Pike stack and returns it as a PikeThing.
-  pub fn pop_from_stack() -> Self {
-    // Ref is transferred, so we won't subtract refs.
-    let sval: &svalue;
-    let res: PikeThing;
-    unsafe {
-      (*Pike_interpreter_pointer).stack_pointer = (*Pike_interpreter_pointer).stack_pointer.offset(-1);
-      let sp = (*Pike_interpreter_pointer).stack_pointer;
-      sval = &*sp;
-      res = sval.into();
-      ptr::write(sp, svalue::undefined());
+    pub fn clone(&self, ctx: &PikeContext) -> PikeThing {
+        match self {
+            PikeThing::Array(a) => PikeThing::Array(a.clone(ctx)),
+            PikeThing::Float(f) => PikeThing::Float(f.clone()),
+            PikeThing::Function(f) => PikeThing::Function(f.clone(ctx)),
+            PikeThing::Int(i) => PikeThing::Int(i.clone()),
+            PikeThing::Mapping(m) => PikeThing::Mapping(m.clone(ctx)),
+            PikeThing::Multiset(m) => PikeThing::Multiset(m.clone(ctx)),
+            PikeThing::Object(o) => PikeThing::Object(o.clone(ctx)),
+            PikeThing::PikeString(s) => PikeThing::PikeString(s.clone(ctx)),
+            PikeThing::Program(p) => PikeThing::Program(p.clone(ctx)),
+            PikeThing::Type(t) => PikeThing::Type(t.clone(ctx)),
+            PikeThing::Undefined => PikeThing::Undefined
+        }
     }
-    return res;
-  }
 
-  /// Pops and discards the specified number of entries from the Pike stack.
-  pub fn pop_n_elems(num_elems: usize) {
-    unsafe {
-      let mut sp = (*Pike_interpreter_pointer).stack_pointer;
-      for _ in 0..num_elems {
-        sp = sp.offset(-1);
-        ptr::write(sp, svalue::undefined());
-      }
+    pub fn unwrap<'ctx>(self, ctx: &'ctx PikeContext) -> PikeThingWithCtx<'ctx> {
+        PikeThingWithCtx { thing: self, ctx: ctx }
     }
-  }
-
-  /// Instantiates a PikeThing representing Pike's UNDEFINED value.
-  pub fn undefined() -> Self {
-    let sval = svalue::undefined();
-    let res: PikeThing = (&sval).into();
-    return res;
-  }
 }
 
-impl Serialize for PikeThing {
+impl<'ctx> Serialize for PikeThingWithCtx<'ctx> {
   fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where S: ::serde::Serializer {
-    match self {
-      PikeThing::Array(a) => { a.serialize(serializer) }
-      PikeThing::Mapping(m) => { m.serialize(serializer) }
-      PikeThing::Multiset(m) => { m.serialize(serializer) }
-      PikeThing::PikeString(s) => { s.serialize(serializer) }
-      PikeThing::Int(i) => { i.serialize(serializer) }
-      PikeThing::Float(f) => { f.serialize(serializer) }
-      _ => Err(ser::Error::custom("Unsupported Pike type"))
+        let ctx = self.ctx;
+        match self.thing {
+            PikeThing::Array(ref a) => {
+                a.clone(ctx).unwrap(ctx).serialize(serializer)
+            }
+            PikeThing::Mapping(ref m) => {
+                m.clone(ctx).unwrap(self.ctx).serialize(serializer)
+            }
+            PikeThing::Multiset(ref m) => {
+                m.clone(ctx).unwrap(self.ctx).serialize(serializer)
+            }
+            PikeThing::PikeString(ref s) => {
+                s.clone(ctx).unwrap(self.ctx).serialize(serializer)
+            }
+            PikeThing::Int(ref i) => {
+                i.serialize(serializer)
+            }
+            PikeThing::Float(ref f) => {
+                f.serialize(serializer)
+            }
+            _ => Err(ser::Error::custom("Unsupported Pike type"))
     }
   }
 }
 
-struct PikeThingVisitor;
+struct PikeThingVisitor<'ctx> {
+    ctx: &'ctx PikeContext
+}
 
-impl<'de> Visitor<'de> for PikeThingVisitor {
+impl<'de, 'ctx> Visitor<'de> for PikeThingVisitor<'ctx> {
     type Value = PikeThing;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -119,39 +119,44 @@ impl<'de> Visitor<'de> for PikeThingVisitor {
     }
 
     fn visit_str<E>(self, v: &str) -> Result<Self::Value, E> {
-        Ok(PikeThing::PikeString(v.into()))
+        let pike_str = PikeString::from_str_slice(v, self.ctx);
+        Ok(PikeThing::PikeString(pike_str.into()))
     }
 
     fn visit_map<M>(self, mut access: M) -> Result<Self::Value, M::Error>
     where M: MapAccess<'de>,
     {
-        let m = PikeMapping::with_capacity(access.size_hint().unwrap_or(0));
+        let m = PikeMapping::with_capacity(access.size_hint().unwrap_or(0),
+            self.ctx);
 
         // While there are entries remaining in the input, add them
         // into our map.
         while let Some((key, value)) = access.next_entry()? {
-            m.insert(&key, &value);
+            m.insert(key, value);
         }
 
-        Ok(PikeThing::Mapping(m))
+        Ok(PikeThing::Mapping(m.into()))
     }
 
     fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
     where A: SeqAccess<'de>,
     {
-        let mut a = PikeArray::with_capacity(seq.size_hint().unwrap_or(0));
+        let mut a =
+            PikeArray::with_capacity(seq.size_hint().unwrap_or(0), self.ctx);
 
         while let Some(value) = seq.next_element()? {
-            a.append(&value)
+            a.append(value)
         }
-        Ok(PikeThing::Array(a))
+        Ok(PikeThing::Array(a.into()))
     }
 }
 
 impl<'de> Deserialize<'de> for PikeThing {
-  fn deserialize<D>(deserializer: D) -> Result<PikeThing, D::Error>
-  where D: Deserializer<'de> {
-    deserializer.deserialize_any(PikeThingVisitor)
+    fn deserialize<D>(deserializer: D) -> Result<PikeThing, D::Error>
+    where D: Deserializer<'de> {
+        PikeContext::call_with_context(|ctx| {
+            deserializer.deserialize_any(PikeThingVisitor { ctx: &ctx })
+        })
   }
 }
 
@@ -193,22 +198,3 @@ macro_rules! gen_from_type_float {
 
 gen_from_type_float!(f64);
 gen_from_type_float!(f32);
-
-
-impl From<String> for PikeThing {
-  fn from(s: String) -> Self {
-    PikeThing::PikeString(s.into())
-  }
-}
-
-impl<'a> From<&'a str> for PikeThing {
-  fn from(s: &str) -> Self {
-    PikeThing::PikeString(s.into())
-  }
-}
-
-impl From<PikeString> for PikeThing {
-    fn from(s: PikeString) -> Self {
-        PikeThing::PikeString(s)
-    }
-}
