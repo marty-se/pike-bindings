@@ -3,6 +3,12 @@ use ::ffi::{debug_master, Pike_interpreter_pointer, object, PIKE_T_OBJECT};
 use ::pike::interpreter::PikeContext;
 use ::std::marker::PhantomData;
 
+// Raw pointers (e.g. *mut array) are not Send-safe by default.
+// However, we know that Pike won't free the array, leaving the pointer
+// dangling, as long as we don't decrement the refcount we incremented in
+// ::new().
+unsafe impl<TStorage> Send for PikeObjectRef<TStorage> {}
+
 #[derive(Debug)]
 pub struct PikeObjectRef<TStorage> {
     object: *mut object,

@@ -47,6 +47,22 @@ where TStorage: Sized {
     ctx: &'ctx PikeContext
 }
 
+impl<'ctx, TStorage> Clone for PikeProgram<'ctx, TStorage> {
+    fn clone(&self) -> Self {
+        Self {
+            program_ref: self.program_ref.clone(self.ctx),
+            ctx: self.ctx
+        }
+    }
+}
+
+impl<'ctx, 'a,  TStorage> From<&'a PikeProgram<'ctx, TStorage>>
+for PikeProgramRef<TStorage> {
+    fn from(prog: &PikeProgram<'ctx, TStorage>) -> Self {
+        prog.program_ref.clone(prog.ctx)
+    }
+}
+
 impl<'ctx, TStorage> PikeProgram<'ctx, TStorage> {
     pub fn from_ptr(program: *mut program, ctx: &'ctx PikeContext) -> Self {
         let obj_ref = PikeProgramRef::new(program, ctx);

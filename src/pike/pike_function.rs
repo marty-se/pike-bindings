@@ -28,6 +28,10 @@ impl PikeFunctionRef {
         Self { pikeobj: self.pikeobj.clone(ctx), fun_idx: self.fun_idx }
     }
 
+    pub fn unwrap<'ctx>(self, ctx: &'ctx PikeContext) -> PikeFunction<'ctx> {
+        PikeFunction { func_ref: self, ctx: ctx }
+    }
+
     pub fn object_ptr(&self) -> *mut object {
         self.pikeobj.as_mut_ptr()
     }
