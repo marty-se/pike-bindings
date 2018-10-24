@@ -351,10 +351,11 @@ fn gen_normal_wrapper_func(export_ident: &syn::Ident,
                 #[deny(private_no_mangle_fns)]
                 #[allow(unused_imports)]
                 pub unsafe extern "C" fn #export_ident(args: i32) {
-
+                    let ctx = PikeContext::assume_got_context();
                     let errmsg: Option<String> = {
                         let catch_res = ::std::panic::catch_unwind(|| ->
                             Result<PikeThing, PikeError> {
+                                let ctx = PikeContext::assume_got_context();
                                 #(#export_args_conversions)*
                                 #result_conversion
                             });
@@ -363,7 +364,7 @@ fn gen_normal_wrapper_func(export_ident: &syn::Ident,
                             Ok(ref inner_res) => {
                                 match *inner_res {
                                     Ok(ref pt) => {
-                                        pt.push_to_stack();
+                                        ctx.push_to_stack(pt.clone(&ctx));
                                         None
                                     }
                                     Err(ref err) => {
@@ -381,7 +382,7 @@ fn gen_normal_wrapper_func(export_ident: &syn::Ident,
                         Some(e) => {
                             prepare_error_message(&e);
                             //std::mem::drop(errmsg);
-                            pike_error()
+                            ctx.pike_error()
                         }
                         None => {}
                     }
@@ -423,14 +424,15 @@ fn gen_create_wrapper_func(export_ident: &syn::Ident,
                 #[deny(private_no_mangle_fns)]
                 #[allow(unused_imports)]
                 pub unsafe extern "C" fn #export_ident(args: i32) {
-
+                    let ctx = PikeContext::assume_got_context();
                     let errmsg: Option<String> = {
                         let catch_res = ::std::panic::catch_unwind(|| ->
                             Result<(), PikeError> {
+                                let ctx = PikeContext::assume_got_context();
                                 #(#export_args_conversions)*
                                 let res = #result_conversion;
                                 let cur_pike_obj = PikeObject::<#struct_ty>
-                                    ::current_object();
+                                    ::current_object(&ctx);
                                 cur_pike_obj.update_data(res);
                                 Ok(())
                             });
@@ -456,7 +458,7 @@ fn gen_create_wrapper_func(export_ident: &syn::Ident,
                         Some(e) => {
                             prepare_error_message(&e);
                             //std::mem::drop(errmsg);
-                            pike_error()
+                            ctx.pike_error()
                         }
                         None => {}
                     }
@@ -498,7 +500,7 @@ fn process( exports: Vec< Export > ) -> quote::Tokens {
                     // FIXME: Check that current_object is an instance of the
                     // expected Pike program.
                     export_args_conversions.push(quote! {
-                        let cur_pike_obj = PikeObject::<#struct_type>::current_object();
+                        let cur_pike_obj = PikeObject::<#struct_type>::current_object(&ctx);
                         let #export_arg_ident: &mut #struct_type = cur_pike_obj.wrapped();
                     });
                     add_arg = false;
@@ -507,7 +509,7 @@ fn process( exports: Vec< Export > ) -> quote::Tokens {
                 ExportType::Int => {
                     pike_args_types.push("int");
                     export_args_conversions.push(quote! {
-                        let #export_arg_ident: PikeInt = match PikeThing::get_from_stack((-args + #arg_idx) as isize) {
+                        let #export_arg_ident: PikeInt = match ctx.get_from_stack((-args + #arg_idx) as isize) {
                             PikeThing::Int(res) => { res }
                             _ => { return Err(PikeError::Args("Wrong argument type, expected int.".to_string())); }
                         };
@@ -518,7 +520,7 @@ fn process( exports: Vec< Export > ) -> quote::Tokens {
                     pike_args_types.push("float");
 
                     export_args_conversions.push(quote! {
-                        let #export_arg_ident: PikeFloat = match PikeThing::get_from_stack((-args + #arg_idx) as isize) {
+                        let #export_arg_ident: PikeFloat = match ctx.get_from_stack((-args + #arg_idx) as isize) {
                             PikeThing::Float(res) => { res }
                             _ => { return Err(PikeError::Args("Wrong argument type, expected float.".to_string())); }
                         };
@@ -528,8 +530,8 @@ fn process( exports: Vec< Export > ) -> quote::Tokens {
                     pike_args_types.push("string");
 
                     export_args_conversions.push(quote! {
-                        let #export_arg_ident: PikeString = match PikeThing::get_from_stack((-args + #arg_idx) as isize) {
-                            PikeThing::PikeString(res) => { res }
+                        let #export_arg_ident: PikeString = match ctx.get_from_stack((-args + #arg_idx) as isize) {
+                            PikeThing::PikeString(res) => { res.unwrap(&ctx) }
                             _ => { return Err(PikeError::Args("Wrong argument type, expected string.".to_string())); }
                         };
                     });
@@ -538,8 +540,8 @@ fn process( exports: Vec< Export > ) -> quote::Tokens {
                     pike_args_types.push("string");
 
                     export_args_conversions.push(quote! {
-                        let #tmp_arg_ident: String = match PikeThing::get_from_stack((-args + #arg_idx) as isize) {
-                            PikeThing::PikeString(res) => { res.into() }
+                        let #tmp_arg_ident: String = match ctx.get_from_stack((-args + #arg_idx) as isize) {
+                            PikeThing::PikeString(res) => { res.unwrap(&ctx).into() }
                             _ => { return Err(PikeError::Args("Wrong argument type, expected string.".to_string())); }
                         };
                         let #export_arg_ident: &str = &#tmp_arg_ident;
@@ -549,8 +551,8 @@ fn process( exports: Vec< Export > ) -> quote::Tokens {
                     pike_args_types.push("function");
 
                     export_args_conversions.push(quote! {
-                        let #export_arg_ident = match PikeThing::get_from_stack((-args + #arg_idx) as isize) {
-                            PikeThing::Function(res) => { res }
+                        let #export_arg_ident = match ctx.get_from_stack((-args + #arg_idx) as isize) {
+                            PikeThing::Function(res) => { res.unwrap(&ctx) }
                             _ => { return Err(PikeError::Args("Wrong argument type, expected function.".to_string())); }
                         };
                     });
@@ -558,8 +560,8 @@ fn process( exports: Vec< Export > ) -> quote::Tokens {
                 ExportType::PikeFunction => {
                     pike_args_types.push("function");
                     export_args_conversions.push(quote! {
-                        let #export_arg_ident = match PikeThing::get_from_stack((-args + #arg_idx) as isize) {
-                            PikeThing::Function(res) => { res }
+                        let #export_arg_ident = match ctx.get_from_stack((-args + #arg_idx) as isize) {
+                            PikeThing::Function(res) => { res.unwrap(&ctx) }
                             _ => { return Err(PikeError::Args("Wrong argument type, expected function.".to_string())); }
                         };
                     });
@@ -567,14 +569,14 @@ fn process( exports: Vec< Export > ) -> quote::Tokens {
                 ExportType::PikeThing => {
                     pike_args_types.push("mixed");
                     export_args_conversions.push(quote! {
-                        let #export_arg_ident = PikeThing::get_from_stack((-args + #arg_idx) as isize);
+                        let #export_arg_ident = ctx.get_from_stack((-args + #arg_idx) as isize);
                     });
                 },
                 ExportType::PikeString => {
                     pike_args_types.push("string");
                     export_args_conversions.push(quote! {
-                        let #export_arg_ident = match PikeThing::get_from_stack((-args + #arg_idx) as isize) {
-                            PikeThing::PikeString(res) => { res }
+                        let #export_arg_ident = match ctx.get_from_stack((-args + #arg_idx) as isize) {
+                            PikeThing::PikeString(res) => { res.unwrap(&ctx) }
                             _ => { return Err(PikeError::Args("Wrong argument type, expected string.".to_string())); }
                         };
                     });
@@ -582,8 +584,8 @@ fn process( exports: Vec< Export > ) -> quote::Tokens {
                 ExportType::WrappedRef(ref _t) => {
                     pike_args_types.push("object");
                     export_args_conversions.push(quote! {
-                        let #export_arg_ident = match PikeThing::get_from_stack((-args + #arg_idx) as isize) {
-                            PikeThing::PikeObject(res) => { res }
+                        let #export_arg_ident = match ctx.get_from_stack((-args + #arg_idx) as isize) {
+                            PikeThing::PikeObject(res) => { res.unwrap(&ctx) }
                             _ => { return Err(PikeError::Args("Wrong argument type, expected string.".to_string())); }
                         };
                     });
@@ -637,7 +639,7 @@ fn process( exports: Vec< Export > ) -> quote::Tokens {
             let ref mut a = *e.borrow_mut();
             a.push(
                 quote! {
-                    add_pike_func(#pike_ident,
+                    PikeProgram::<()>::add_pike_func(#pike_ident,
                         #pike_func_type,
                         #export_ident);
                 })
@@ -668,8 +670,10 @@ fn handle_item_impl(mut orig_item: syn::Item) -> TokenStream {
             let ref mut a = *e.borrow_mut();
             a.push(
                 quote! {
+                    let ctx;
                     unsafe {
-                        start_new_program::<#struct_ty>(file!(), line!());
+                        ctx = PikeContext::assume_got_context();
+                        PikeProgram::<#struct_ty>::start_new_program(file!(), line!());
                     }
                 }
             );
@@ -696,7 +700,7 @@ fn handle_item_impl(mut orig_item: syn::Item) -> TokenStream {
         let ref mut a = *e.borrow_mut();
         a.push(
             quote! {
-                static mut #program_var: Option<PikeProgram<#struct_ty>> = None;
+                static mut #program_var: Option<PikeProgramRef<#struct_ty>> = None;
             }
         )
     });
@@ -706,13 +710,13 @@ fn handle_item_impl(mut orig_item: syn::Item) -> TokenStream {
         let class_ident = format!("{}", struct_ty.unwrap());
         a.push(
             quote! {
-                let new_class_prog = PikeProgram::<#struct_ty>::finish_program();
+                let new_class_prog = PikeProgram::<#struct_ty>::finish_program(&ctx);
                 PikeProgram::add_program_constant(#class_ident, new_class_prog.clone());
                 unsafe {
                     // We know that Pike's compiler lock protects us from
                     // data races, so we're doing an unsafe mutable assignment
                     // here.
-                    #program_var = Some(new_class_prog);
+                    #program_var = Some((&new_class_prog).into());
                 }
             }
         );

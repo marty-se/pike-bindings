@@ -56,6 +56,12 @@ pub struct PikeContext {
 }
 
 impl PikeContext {
+    /// Returns a PikeContext under the assumption that this thread is a Pike
+    /// thread and the interpreter lock is already held.
+    pub unsafe fn assume_got_context() -> Self {
+        PikeContext { no_send: PhantomData }
+    }
+
     pub fn release(self) -> CtxReleased {
         let thread_state;
 
