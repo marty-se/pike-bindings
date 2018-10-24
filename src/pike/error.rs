@@ -36,7 +36,7 @@ impl fmt::Display for PikeError {
             PikeError::Generic(reason) => {
                 write!(f, "{}", reason)
             },
-            PikeError::PikeError(reason, pike_err) => {
+            PikeError::PikeError(reason, _pike_err) => {
                 write!(f, "{}", reason)
             }
         }

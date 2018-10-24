@@ -63,7 +63,7 @@ struct DeferredMappingDrop {
 }
 
 impl DropWithContext for DeferredMappingDrop {
-    fn drop_with_context(&self, ctx: &PikeContext) {
+    fn drop_with_context(&self, _ctx: &PikeContext) {
         let ptr = self.mapping;
         unsafe {
             (*ptr).refs -= 1;
