@@ -111,6 +111,76 @@ impl<'ctx, TStorage> PikeProgram<'ctx, TStorage> {
             add_program_constant(cname.as_ptr(), prog.program_ref.program, 0);
         }
     }
+
+    /// Adds a function to the program currently being compiled.
+    pub fn add_pike_func(name: &str, type_str: &str, fun: unsafe extern "C" fn(i32) -> ())
+    {
+        let func_name = CString::new(name).unwrap();
+        let func_type = CString::new(type_str).unwrap();
+        unsafe {
+            pike_add_function2(func_name.as_ptr(),
+            Some(fun),
+            func_type.as_ptr(),
+            0,
+            OPT_SIDE_EFFECT|OPT_EXTERNAL_DEPEND);
+        }
+    }
+
+    // Calling this function is unsafe because object storage is zeroed on
+    // initialization. Thus, clone_object_with_data must be used to initialize
+    // storage when an object is instantiated.
+    pub unsafe fn start_new_program(filename: &str, line: u32) {
+        let fname = ::std::ffi::CString::new(filename).unwrap();
+        debug_start_new_program(line as i64, fname.as_ptr());
+        low_add_storage(::std::mem::size_of::<TStorage>(),
+          ::std::mem::align_of::<TStorage>(), 0);
+        pike_set_prog_event_callback(Some(Self::prog_event_callback));
+    }
+
+    pub fn start_new_program_with_default(filename: &str, line: u32)
+    where TStorage: Default {
+        unsafe {
+            let fname = ::std::ffi::CString::new(filename).unwrap();
+            debug_start_new_program(line as i64, fname.as_ptr());
+            low_add_storage(::std::mem::size_of::<TStorage>(), ::std::mem::align_of::<TStorage>(), 0);
+            pike_set_prog_event_callback(Some(Self::prog_event_callback_default));
+        }
+    }
+
+    unsafe extern "C" fn prog_event_callback(event: i32) {
+        match event as u32 {
+            PROG_EVENT_INIT => {
+                let storage_data: TStorage = ::std::mem::zeroed();
+                let storage_ptr = (*(*Pike_interpreter_pointer).frame_pointer).current_storage
+                as *mut TStorage;
+                ::std::ptr::write(storage_ptr, storage_data);
+            },
+            PROG_EVENT_EXIT => {
+                let storage = (*(*Pike_interpreter_pointer).frame_pointer).current_storage
+                as *mut TStorage;
+                ::std::mem::drop(storage);
+            },
+            _ => {}
+        }
+    }
+
+    unsafe extern "C" fn prog_event_callback_default(event: i32)
+    where TStorage: Default {
+        match event as u32 {
+            PROG_EVENT_INIT => {
+                let storage_data: TStorage = Default::default();
+                let storage_ptr = (*(*Pike_interpreter_pointer).frame_pointer).current_storage
+                as *mut TStorage;
+                ::std::ptr::write(storage_ptr, storage_data);
+            },
+            PROG_EVENT_EXIT => {
+                let storage = (*(*Pike_interpreter_pointer).frame_pointer).current_storage
+                as *mut TStorage;
+                ::std::mem::drop(storage);
+            },
+            _ => {}
+        }
+    }
 }
 
 /*
@@ -147,79 +217,11 @@ impl<TStorage> Drop for PikeProgram<TStorage> {
 }
 */
 
-unsafe extern "C" fn prog_event_callback<TStorage>(event: i32) {
-    match event as u32 {
-      PROG_EVENT_INIT => {
-        let storage_data: TStorage = ::std::mem::zeroed();
-        let storage_ptr = (*(*Pike_interpreter_pointer).frame_pointer).current_storage
-          as *mut TStorage;
-        ::std::ptr::write(storage_ptr, storage_data);
-      },
-      PROG_EVENT_EXIT => {
-          let storage = (*(*Pike_interpreter_pointer).frame_pointer).current_storage
-            as *mut TStorage;
-          ::std::mem::drop(storage);
-      },
-      _ => {}
-    }
-}
-
-// Calling this function is unsafe because object storage is zeroed on
-// initialization. Thus, clone_object_with_data must be used to initialize
-// storage when an object is instantiated.
-pub unsafe fn start_new_program<TStorage>(filename: &str, line: u32) {
-    let fname = ::std::ffi::CString::new(filename).unwrap();
-    debug_start_new_program(line as i64, fname.as_ptr());
-    low_add_storage(::std::mem::size_of::<TStorage>(), ::std::mem::align_of::<TStorage>(), 0);
-    pike_set_prog_event_callback(Some(prog_event_callback::<TStorage>));
-}
-
-unsafe extern "C" fn prog_event_callback_default<TStorage>(event: i32)
-  where TStorage: Default {
-    match event as u32 {
-      PROG_EVENT_INIT => {
-        let storage_data: TStorage = Default::default();
-        let storage_ptr = (*(*Pike_interpreter_pointer).frame_pointer).current_storage
-          as *mut TStorage;
-        ::std::ptr::write(storage_ptr, storage_data);
-      },
-      PROG_EVENT_EXIT => {
-          let storage = (*(*Pike_interpreter_pointer).frame_pointer).current_storage
-            as *mut TStorage;
-          ::std::mem::drop(storage);
-      },
-      _ => {}
-    }
-}
-
-pub fn start_new_program_with_default<TStorage>(filename: &str, line: u32)
-  where TStorage: Default {
-  unsafe {
-    let fname = ::std::ffi::CString::new(filename).unwrap();
-    debug_start_new_program(line as i64, fname.as_ptr());
-    low_add_storage(::std::mem::size_of::<TStorage>(), ::std::mem::align_of::<TStorage>(), 0);
-    pike_set_prog_event_callback(Some(prog_event_callback_default::<TStorage>));
-  }
-}
-
 pub fn end_class(name: &str) {
   let class_name = ::std::ffi::CString::new(name).unwrap();
   unsafe {
     let prog: *mut program = debug_end_program();
     add_program_constant(class_name.as_ptr(), prog, 0);
-  }
-}
-
-pub fn add_pike_func(name: &str, type_str: &str, fun: unsafe extern "C" fn(i32) -> ())
-{
-  let func_name = CString::new(name).unwrap();
-  let func_type = CString::new(type_str).unwrap();
-  unsafe {
-    pike_add_function2(func_name.as_ptr(),
-            Some(fun),
-            func_type.as_ptr(),
-            0,
-            OPT_SIDE_EFFECT|OPT_EXTERNAL_DEPEND);
   }
 }
 
