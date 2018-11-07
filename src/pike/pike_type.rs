@@ -1,30 +1,26 @@
 use ::pike::*;
-use ::ffi::{pike_type};
+use ::pike::interpreter::DropWithContext;
+use ::ffi::{pike_type, really_free_pike_type};
 
 #[derive(Debug)]
 pub struct PikeTypeRef {
-  pike_type: *mut pike_type
+  ptr: *mut pike_type
 }
 
-impl PikeTypeRef {
-    pub fn new(pike_type: *mut pike_type, _ctx: &PikeContext) -> Self {
+refcounted_type!(PikeTypeRef, pike_type, DeferredTypeDrop);
+
+struct DeferredTypeDrop {
+    ptr: *mut pike_type
+}
+
+impl DropWithContext for DeferredTypeDrop {
+    fn drop_with_context(&self, _ctx: &PikeContext) {
+        let ptr = self.ptr;
         unsafe {
-            (*pike_type).refs += 1;
+            (*ptr).refs -= 1;
+            if (*ptr).refs == 0 {
+                really_free_pike_type(ptr);
+            }
         }
-        Self { pike_type: pike_type }
-    }
-
-    pub fn new_without_ref(pike_type: *mut pike_type) -> Self {
-        Self { pike_type: pike_type }
-    }
-
-    // Cannot implement regular Clone trait since we need a &PikeContext
-    // argument.
-    pub fn clone(&self, ctx: &PikeContext) -> Self {
-        Self::new(self.pike_type, ctx)
-    }
-
-    pub fn as_mut_ptr(&self) -> *mut pike_type {
-        self.pike_type
     }
 }

@@ -7,6 +7,61 @@ use std::fmt;
 
 use serde::de::{Visitor, MapAccess, SeqAccess};
 
+pub trait Refcounted<TPtr>: Drop + CloneWithCtx {
+    unsafe fn from_ptr<'ctx>(ptr: *mut TPtr) -> Self;
+    unsafe fn from_ptr_add_ref<'ctx>(ptr: *mut TPtr, ctx: &'ctx PikeContext) -> Self;
+    fn as_mut_ptr(&self) -> *mut TPtr;
+}
+
+pub trait CloneWithCtx: Sized {
+    fn clone_with_ctx<'ctx>(&self, ctx: &'ctx PikeContext) -> Self;
+}
+
+pub trait FromWithCtx<'ctx, T>: Sized {
+    fn from_with_ctx(_: T, ctx: &'ctx PikeContext) -> Self;
+}
+
+pub trait IntoWithCtx<'ctx, T>: Sized {
+    fn into_with_ctx(self, ctx: &'ctx PikeContext) -> T;
+}
+
+impl<'ctx, T, U> IntoWithCtx<'ctx, U> for T where U: FromWithCtx<'ctx, T>
+{
+    fn into_with_ctx(self, ctx: &'ctx PikeContext) -> U {
+        U::from_with_ctx(self, ctx)
+    }
+}
+/*
+#[derive(Debug)]
+pub struct Ref<T, TPtr>
+where T: Refcounted<TPtr> {
+    _phantom: PhantomData<T>
+}
+
+impl<T> Ref<T>
+where T: Refcounted {
+    pub fn new(ptr: *mut TPtr, _ctx: &PikeContext) -> Self {
+        let t = unsafe { &mut *ptr };
+        t.add_ref();
+        Self { ptr: ptr, _phantom: PhantomData }
+    }
+
+    pub unsafe fn new_without_ref(ptr: *mut TPtr) -> Self {
+        Self { ptr: ptr, _phantom: PhantomData }
+    }
+
+    // Cannot implement regular Clone trait since we need a &PikeContext
+    // argument.
+    pub fn clone(&self, ctx: &PikeContext) -> Self {
+        Self::new(self.ptr, ctx)
+    }
+
+    pub fn as_mut_ptr(&self) -> *mut TPtr {
+        self.ptr
+    }
+}
+*/
+/// The `PikeThing` type. Equivalent to Pike's `svalue` type, with Rust idioms.
 #[derive(Debug)]
 pub enum PikeThing {
     Array(PikeArrayRef),
@@ -22,7 +77,6 @@ pub enum PikeThing {
     Undefined
 }
 
-/// The `PikeThing` type. Equivalent to Pike's `svalue` type, with Rust idioms.
 #[derive(Debug)]
 pub struct PikeThingWithCtx<'ctx> {
     thing: PikeThing,
@@ -42,18 +96,18 @@ impl PikeThing {
         return res;
     }
 
-    pub fn clone(&self, ctx: &PikeContext) -> PikeThing {
+    pub fn clone_with_ctx(&self, ctx: &PikeContext) -> PikeThing {
         match self {
-            PikeThing::Array(a) => PikeThing::Array(a.clone(ctx)),
+            PikeThing::Array(a) => PikeThing::Array(a.clone_with_ctx(ctx)),
             PikeThing::Float(f) => PikeThing::Float(f.clone()),
-            PikeThing::Function(f) => PikeThing::Function(f.clone(ctx)),
+            PikeThing::Function(f) => PikeThing::Function(f.clone_with_ctx(ctx)),
             PikeThing::Int(i) => PikeThing::Int(i.clone()),
-            PikeThing::Mapping(m) => PikeThing::Mapping(m.clone(ctx)),
-            PikeThing::Multiset(m) => PikeThing::Multiset(m.clone(ctx)),
-            PikeThing::Object(o) => PikeThing::Object(o.clone(ctx)),
-            PikeThing::PikeString(s) => PikeThing::PikeString(s.clone(ctx)),
-            PikeThing::Program(p) => PikeThing::Program(p.clone(ctx)),
-            PikeThing::Type(t) => PikeThing::Type(t.clone(ctx)),
+            PikeThing::Mapping(m) => PikeThing::Mapping(m.clone_with_ctx(ctx)),
+            PikeThing::Multiset(m) => PikeThing::Multiset(m.clone_with_ctx(ctx)),
+            PikeThing::Object(o) => PikeThing::Object(o.clone_with_ctx(ctx)),
+            PikeThing::PikeString(s) => PikeThing::PikeString(s.clone_with_ctx(ctx)),
+            PikeThing::Program(p) => PikeThing::Program(p.clone_with_ctx(ctx)),
+            PikeThing::Type(t) => PikeThing::Type(t.clone_with_ctx(ctx)),
             PikeThing::Undefined => PikeThing::Undefined
         }
     }
@@ -68,17 +122,21 @@ impl<'ctx> Serialize for PikeThingWithCtx<'ctx> {
     where S: ::serde::Serializer {
         let ctx = self.ctx;
         match self.thing {
-            PikeThing::Array(ref a) => {
-                a.clone(ctx).unwrap(ctx).serialize(serializer)
+            PikeThing::Array(ref a_ref) => {
+                let a: PikeArray = a_ref.clone_with_ctx(ctx).into_with_ctx(ctx);
+                a.serialize(serializer)
             }
-            PikeThing::Mapping(ref m) => {
-                m.clone(ctx).unwrap(self.ctx).serialize(serializer)
+            PikeThing::Mapping(ref m_ref) => {
+                let m: PikeMapping = m_ref.clone_with_ctx(ctx).into_with_ctx(ctx);
+                m.serialize(serializer)
             }
-            PikeThing::Multiset(ref m) => {
-                m.clone(ctx).unwrap(self.ctx).serialize(serializer)
+            PikeThing::Multiset(ref m_ref) => {
+                let m: PikeMultiset = m_ref.clone_with_ctx(ctx).into_with_ctx(ctx);
+                m.serialize(serializer)
             }
-            PikeThing::PikeString(ref s) => {
-                s.clone(ctx).unwrap(self.ctx).serialize(serializer)
+            PikeThing::PikeString(ref s_ref) => {
+                let s: PikeString = s_ref.clone_with_ctx(ctx).into_with_ctx(ctx);
+                s.serialize(serializer)
             }
             PikeThing::Int(ref i) => {
                 i.serialize(serializer)

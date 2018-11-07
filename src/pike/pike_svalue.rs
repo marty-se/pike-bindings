@@ -12,7 +12,7 @@ impl From<svalue> for PikeThing {
             PIKE_T_ARRAY => {
                 PikeThing::Array(
                     unsafe {
-                        PikeArrayRef::new_without_ref(sval.u.array)
+                        PikeArrayRef::from_ptr(sval.u.array)
                     })
             },
             PIKE_T_FLOAT => {
@@ -36,36 +36,35 @@ impl From<svalue> for PikeThing {
             PIKE_T_MAPPING => {
                 PikeThing::Mapping(
 					unsafe {
-                        PikeMappingRef::new_without_ref(sval.u.mapping)
+                        PikeMappingRef::from_ptr(sval.u.mapping)
                     })
             },
             PIKE_T_MULTISET => {
                 PikeThing::Multiset(
 					unsafe {
-                        PikeMultisetRef::new_without_ref(sval.u.multiset)
+                        PikeMultisetRef::from_ptr(sval.u.multiset)
                     })
             },
             PIKE_T_OBJECT => {
                 PikeThing::Object(
 					unsafe {
-                        PikeObjectRef::<()>::new_without_ref(sval.u.object)
+                        PikeObjectRef::<()>::from_ptr(sval.u.object)
                     })
             },
             PIKE_T_STRING => {
                 PikeThing::PikeString(
 					unsafe {
-                        PikeStringRef::new_without_ref(sval.u.string)
+                        PikeStringRef::from_ptr(sval.u.string)
                     })
             },
             PIKE_T_PROGRAM => {
                 PikeThing::Program(
 					unsafe {
-                        PikeProgramRef::<()>::new_without_ref(sval.u.program)
+                        PikeProgramRef::<()>::from_ptr(sval.u.program)
                     })
             },
             PIKE_T_TYPE => {
-                PikeThing::Type(PikeTypeRef::new_without_ref(
-                    unsafe { sval.u.type_ }))
+                PikeThing::Type(unsafe { PikeTypeRef::from_ptr(sval.u.type_ )})
             },
             _ => panic!("Unknown Pike type.")
         };

@@ -1,5 +1,6 @@
 use ::ffi::*;
-use ::pike::{PikeObject, PikeThing, PikeError, PikeContext};
+use ::pike::*;
+use ::pike::interpreter::DropWithContext;
 use std::ffi::CString;
 use ::std::marker::PhantomData;
 
@@ -8,35 +9,25 @@ pub use ::ffi::{low_add_storage, pike_set_prog_event_callback, PROG_EVENT_INIT, 
 #[derive(Debug)]
 pub struct PikeProgramRef<TStorage>
 where TStorage: Sized {
-    program: *mut program,
+    ptr: *mut program,
     _phantom: PhantomData<TStorage>
 }
 
-impl<TStorage> PikeProgramRef<TStorage> {
-    pub fn new(program: *mut program, _ctx: &PikeContext) -> Self {
+refcounted_type_with_storage!(PikeProgramRef, program, DeferredProgramDrop);
+
+struct DeferredProgramDrop {
+    ptr: *mut program
+}
+
+impl DropWithContext for DeferredProgramDrop {
+    fn drop_with_context(&self, _ctx: &PikeContext) {
+        let ptr = self.ptr;
         unsafe {
-            (*program).refs += 1;
+            (*ptr).refs -= 1;
+            if (*ptr).refs == 0 {
+                really_free_program(ptr);
+            }
         }
-        Self { program: program, _phantom: PhantomData }
-    }
-
-    pub unsafe fn new_without_ref(program: *mut program) -> Self {
-        Self { program: program, _phantom: PhantomData }
-    }
-
-    // Cannot implement regular Clone trait since we need a &PikeContext
-    // argument.
-    pub fn clone(&self, ctx: &PikeContext) -> Self {
-        Self::new(self.program, ctx)
-    }
-
-    pub fn unwrap<'ctx>(self, ctx: &'ctx PikeContext) ->
-    PikeProgram<'ctx, TStorage> {
-        PikeProgram { program_ref: self, ctx: ctx }
-    }
-
-    pub fn as_mut_ptr(&self) -> *mut program {
-        self.program
     }
 }
 
@@ -50,7 +41,7 @@ where TStorage: Sized {
 impl<'ctx, TStorage> Clone for PikeProgram<'ctx, TStorage> {
     fn clone(&self) -> Self {
         Self {
-            program_ref: self.program_ref.clone(self.ctx),
+            program_ref: self.program_ref.clone_with_ctx(self.ctx),
             ctx: self.ctx
         }
     }
@@ -59,17 +50,18 @@ impl<'ctx, TStorage> Clone for PikeProgram<'ctx, TStorage> {
 impl<'ctx, 'a,  TStorage> From<&'a PikeProgram<'ctx, TStorage>>
 for PikeProgramRef<TStorage> {
     fn from(prog: &PikeProgram<'ctx, TStorage>) -> Self {
-        prog.program_ref.clone(prog.ctx)
+        prog.program_ref.clone_with_ctx(prog.ctx)
     }
 }
 
 impl<'ctx, TStorage> PikeProgram<'ctx, TStorage> {
-    pub fn from_ptr(program: *mut program, ctx: &'ctx PikeContext) -> Self {
-        let obj_ref = PikeProgramRef::new(program, ctx);
+    pub unsafe fn from_ptr(program: *mut program, ctx: &'ctx PikeContext)
+    -> Self {
+        let obj_ref = PikeProgramRef::from_ptr(program);
         Self::from_ref(obj_ref, ctx)
     }
 
-    pub fn from_ref(program_ref: PikeProgramRef<TStorage>,
+    pub unsafe fn from_ref(program_ref: PikeProgramRef<TStorage>,
         ctx: &'ctx PikeContext) -> Self {
         Self { program_ref: program_ref, ctx: ctx }
     }
@@ -79,18 +71,18 @@ impl<'ctx, TStorage> PikeProgram<'ctx, TStorage> {
         let new_prog_ptr: *mut program;
         unsafe {
             new_prog_ptr = debug_end_program();
-        };
-        let prog_ref = PikeProgramRef::new(new_prog_ptr, ctx);
-        Self::from_ref(prog_ref, ctx)
+            let prog_ref = PikeProgramRef::from_ptr_add_ref(new_prog_ptr, ctx);
+            Self::from_ref(prog_ref, ctx)
+        }
     }
 
     pub fn clone_object(&self) -> Result<PikeObject<()>, PikeError> {
         self.ctx.catch_pike_error(|| {
               let obj: *mut object;
               unsafe {
-                  obj = debug_clone_object(self.program_ref.program, 0);
+                  obj = debug_clone_object(self.program_ref.ptr, 0);
+                  PikeObjectRef::<()>::from_ptr(obj).into_with_ctx(self.ctx)
               }
-              PikeObject::<()>::from_ptr(obj, self.ctx)
         })
     }
 
@@ -98,10 +90,12 @@ impl<'ctx, TStorage> PikeProgram<'ctx, TStorage> {
       -> Result<PikeObject<TStorage>, PikeError> {
           self.ctx.catch_pike_error(|| {
               let obj: *mut object;
+              let res_obj: PikeObject<TStorage>;
               unsafe {
-                  obj = debug_clone_object(self.program_ref.program, 0);
+                  obj = debug_clone_object(self.program_ref.ptr, 0);
+                  res_obj = PikeObjectRef::<TStorage>::from_ptr(obj)
+                      .into_with_ctx(self.ctx);
               }
-              let res_obj = PikeObject::<TStorage>::from_ptr(obj, self.ctx);
 
               {
                   let storage = res_obj.wrapped();
@@ -115,8 +109,10 @@ impl<'ctx, TStorage> PikeProgram<'ctx, TStorage> {
 
     /// Returns the program that is currently being compiled.
     pub fn current_compilation(ctx: &'ctx PikeContext) -> Self {
-        let prog_ptr = unsafe { (*Pike_compiler).new_program };
-        Self::from_ptr(prog_ptr, ctx)
+        unsafe {
+            let prog_ptr = (*Pike_compiler).new_program;
+            Self::from_ptr(prog_ptr, ctx)
+        }
     }
 
     /// Adds the provided program to the program currently being compiled,
@@ -124,7 +120,7 @@ impl<'ctx, TStorage> PikeProgram<'ctx, TStorage> {
     pub fn add_program_constant(name: &str, prog: Self) {
         let cname = ::std::ffi::CString::new(name).unwrap();
         unsafe {
-            add_program_constant(cname.as_ptr(), prog.program_ref.program, 0);
+            add_program_constant(cname.as_ptr(), prog.program_ref.ptr, 0);
         }
     }
 

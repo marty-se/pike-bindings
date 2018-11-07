@@ -364,7 +364,7 @@ fn gen_normal_wrapper_func(export_ident: &syn::Ident,
                             Ok(ref inner_res) => {
                                 match *inner_res {
                                     Ok(ref pt) => {
-                                        ctx.push_to_stack(pt.clone(&ctx));
+                                        ctx.push_to_stack(pt.clone_with_ctx(&ctx));
                                         None
                                     }
                                     Err(ref err) => {
@@ -531,7 +531,7 @@ fn process( exports: Vec< Export > ) -> quote::Tokens {
 
                     export_args_conversions.push(quote! {
                         let #export_arg_ident: PikeString = match ctx.get_from_stack((-args + #arg_idx) as isize) {
-                            PikeThing::PikeString(res) => { res.unwrap(&ctx) }
+                            PikeThing::PikeString(res) => { PikeString::from_with_ctx(res, &ctx) }
                             _ => { return Err(PikeError::Args("Wrong argument type, expected string.".to_string())); }
                         };
                     });
@@ -541,7 +541,7 @@ fn process( exports: Vec< Export > ) -> quote::Tokens {
 
                     export_args_conversions.push(quote! {
                         let #tmp_arg_ident: String = match ctx.get_from_stack((-args + #arg_idx) as isize) {
-                            PikeThing::PikeString(res) => { res.unwrap(&ctx).into() }
+                            PikeThing::PikeString(res) => { PikeString::from_with_ctx(res, &ctx) }
                             _ => { return Err(PikeError::Args("Wrong argument type, expected string.".to_string())); }
                         };
                         let #export_arg_ident: &str = &#tmp_arg_ident;
@@ -552,7 +552,7 @@ fn process( exports: Vec< Export > ) -> quote::Tokens {
 
                     export_args_conversions.push(quote! {
                         let #export_arg_ident = match ctx.get_from_stack((-args + #arg_idx) as isize) {
-                            PikeThing::Function(res) => { res.unwrap(&ctx) }
+                            PikeThing::Function(res) => { PikeFunction::from_with_ctx(res, &ctx)}
                             _ => { return Err(PikeError::Args("Wrong argument type, expected function.".to_string())); }
                         };
                     });
@@ -561,7 +561,7 @@ fn process( exports: Vec< Export > ) -> quote::Tokens {
                     pike_args_types.push("function");
                     export_args_conversions.push(quote! {
                         let #export_arg_ident = match ctx.get_from_stack((-args + #arg_idx) as isize) {
-                            PikeThing::Function(res) => { res.unwrap(&ctx) }
+                            PikeThing::Function(res) => { PikeFunction::from_with_ctx(res, &ctx) }
                             _ => { return Err(PikeError::Args("Wrong argument type, expected function.".to_string())); }
                         };
                     });
@@ -576,7 +576,7 @@ fn process( exports: Vec< Export > ) -> quote::Tokens {
                     pike_args_types.push("string");
                     export_args_conversions.push(quote! {
                         let #export_arg_ident = match ctx.get_from_stack((-args + #arg_idx) as isize) {
-                            PikeThing::PikeString(res) => { res.unwrap(&ctx) }
+                            PikeThing::PikeString(res) => { PikeString::from_with_ctx(res, &ctx) }
                             _ => { return Err(PikeError::Args("Wrong argument type, expected string.".to_string())); }
                         };
                     });
@@ -585,7 +585,7 @@ fn process( exports: Vec< Export > ) -> quote::Tokens {
                     pike_args_types.push("object");
                     export_args_conversions.push(quote! {
                         let #export_arg_ident = match ctx.get_from_stack((-args + #arg_idx) as isize) {
-                            PikeThing::PikeObject(res) => { res.unwrap(&ctx) }
+                            PikeThing::PikeObject(res) => { PikeObject::from_with_ctx(res, &ctx) }
                             _ => { return Err(PikeError::Args("Wrong argument type, expected string.".to_string())); }
                         };
                     });

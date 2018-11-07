@@ -3,67 +3,20 @@ use ::ffi::*;
 use ::serde::ser::*;
 use ::pike::interpreter::DropWithContext;
 
-// Raw pointers (e.g. *mut array) are not Send-safe by default.
-// However, we know that Pike won't free the array, leaving the pointer
-// dangling, as long as we don't decrement the refcount we incremented in
-// ::new().
-unsafe impl Send for PikeArrayRef {}
-unsafe impl Send for DeferredArrayDrop {}
-
 #[derive(Debug)]
 pub struct PikeArrayRef {
-    array: *mut array
+    ptr: *mut array
 }
 
-impl PikeArrayRef {
-    pub fn new(array: *mut array, _ctx: &PikeContext) -> Self {
-        unsafe {
-            (*array).refs += 1;
-        }
-        Self { array: array }
-    }
-
-    pub fn new_without_ref(array: *mut array) -> Self {
-        Self { array: array }
-    }
-
-    // Cannot implement regular Clone trait since we need a &PikeContext
-    // argument.
-    pub fn clone(&self, ctx: &PikeContext) -> Self {
-        Self::new(self.array, ctx)
-    }
-
-    pub fn unwrap<'ctx>(self, ctx: &'ctx PikeContext) -> PikeArray<'ctx> {
-        PikeArray { array_ref: self, ctx: ctx }
-    }
-
-    pub fn as_mut_ptr(&self) -> *mut array {
-        self.array
-    }
-}
-
-impl Drop for PikeArrayRef {
-    fn drop(&mut self) {
-        // This may be called anywhere, but we may only decrease refs (and
-        // potentially free) while the interpreter lock is held. However, we
-        // don't want to acquire the lock here, both for performance reasons and
-        // potential locking order predictability issues. Instead, we'll
-        // transfer the pointer to a new struct that we send to
-        // drop_with_context().
-        // Note: our contribution to the reference counter of the raw
-        // mapping struct is transferred to the DeferredMappingDrop here.
-        let new_ref = DeferredArrayDrop { array: self.array };
-        ::pike::interpreter::drop_with_context(new_ref);
-    }
-}
+refcounted_type!(PikeArrayRef, array, DeferredArrayDrop);
 
 struct DeferredArrayDrop {
-    array: *mut array
+    ptr: *mut array
 }
 
 impl DropWithContext for DeferredArrayDrop {
     fn drop_with_context(&self, _ctx: &PikeContext) {
-        let ptr = self.array;
+        let ptr = self.ptr;
         unsafe {
             (*ptr).refs -= 1;
             if (*ptr).refs == 0 {
@@ -88,36 +41,26 @@ impl<'ctx> PikeArray<'ctx> {
 
     /// Returns an empty array with a pre-allocated capacity (but 0 size).
     pub fn with_capacity(capacity: usize, ctx: &'ctx PikeContext) -> Self {
-        // FIXME: Is a ref added implicitly?
-        let new_array = unsafe { real_allocate_array(0, capacity as isize) };
-        PikeArray {
-            array_ref: PikeArrayRef {
-                array: new_array
-            },
-            ctx: ctx
-        }
+        let array_ref = unsafe {
+            PikeArrayRef::from_ptr(real_allocate_array(0, capacity as isize))
+        };
+        PikeArray { array_ref, ctx }
     }
 
     /// Returns an array with the specified size.
     pub fn with_size(size: usize, ctx: &'ctx PikeContext) -> Self {
-        let new_array = unsafe { real_allocate_array(size as isize, 0) };
-        PikeArray {
-            array_ref: PikeArrayRef {
-                array: new_array
-            },
-            ctx: ctx
-        }
+        let array_ref = unsafe {
+            PikeArrayRef::from_ptr(real_allocate_array(size as isize, 0))
+        };
+        PikeArray { array_ref, ctx }
     }
 
     pub fn aggregate_from_stack(num_entries: usize, ctx: &'ctx PikeContext)
     -> Self {
-        let new_array = unsafe { aggregate_array(num_entries as i32) };
-        PikeArray {
-            array_ref: PikeArrayRef {
-                array: new_array
-            },
-            ctx: ctx
-        }
+        let array_ref = unsafe {
+            PikeArrayRef::from_ptr(aggregate_array(num_entries as i32))
+        };
+        PikeArray { array_ref, ctx }
     }
 
     pub fn append(&mut self, value: PikeThing) {
@@ -126,15 +69,15 @@ impl<'ctx> PikeArray<'ctx> {
         {
             let old_ref = &self.array_ref;
             new_ptr = unsafe {
-                append_array(old_ref.array, &mut sval)
+                append_array(old_ref.as_mut_ptr(), &mut sval)
             };
         }
-        self.array_ref = PikeArrayRef { array: new_ptr };
+        self.array_ref = unsafe { PikeArrayRef::from_ptr(new_ptr) };
     }
 
     pub fn len(&self) -> usize {
         unsafe {
-            (*self.array_ref.array).size as usize
+            (*self.array_ref.as_mut_ptr()).size as usize
         }
     }
 }
@@ -178,7 +121,9 @@ impl<'ctx> IntoIterator for PikeArray<'ctx> {
         unsafe { f_get_iterator(1); }
         match ctx.pop_from_stack() {
             PikeThing::Object(it) => {
-                PikeArrayIterator::<'ctx> { iterator: it.unwrap(ctx) }
+                PikeArrayIterator::<'ctx> {
+                    iterator: it.into_with_ctx(ctx)
+                }
             }
             _ => panic!("Wrong type returned from f_get_iterator")
         }
@@ -191,12 +136,12 @@ impl<'a> IntoIterator for &'a PikeArray<'a> {
 
     fn into_iter(self) -> Self::IntoIter {
         let ctx = self.ctx;
-        let thing = PikeThing::Array(self.array_ref.clone(ctx));
+        let thing = PikeThing::Array(self.array_ref.clone_with_ctx(ctx));
         ctx.push_to_stack(thing);
         unsafe { f_get_iterator(1); }
         match ctx.pop_from_stack() {
             PikeThing::Object(it) => {
-                PikeArrayIterator { iterator: it.unwrap(ctx) }
+                PikeArrayIterator { iterator: it.into_with_ctx(ctx) }
             }
             _ => panic!("Wrong type returned from f_get_iterator")
         }

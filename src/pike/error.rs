@@ -13,8 +13,9 @@ fn describe_pike_error(pike_error: &PikeThing, ctx: &PikeContext) -> String {
     let pike_master = PikeObject::<()>::get_master(ctx);
     let desc_res = pike_master.call_func("describe_error", vec![pike_error]);
     if let Ok(pt) = desc_res {
-        if let PikeThing::PikeString(s) = pt {
-            return s.unwrap(ctx).into();
+        if let PikeThing::PikeString(str_ref) = pt {
+            let pike_string: PikeString = str_ref.into_with_ctx(ctx);
+            return pike_string.into();
         }
     }
     "Failed to describe error".to_string()

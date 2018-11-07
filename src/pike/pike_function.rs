@@ -9,27 +9,24 @@ pub struct PikeFunctionRef {
   fun_idx: c_ushort
 }
 
+impl CloneWithCtx for PikeFunctionRef {
+    fn clone_with_ctx(&self, ctx: &PikeContext) -> Self {
+        Self { pikeobj: self.pikeobj.clone_with_ctx(ctx), fun_idx: self.fun_idx }
+    }
+}
+
 impl PikeFunctionRef {
     pub fn new(object: *mut object, fun_idx: c_ushort, ctx: &PikeContext)
     -> Self {
-        let pikeobj = PikeObjectRef::<()>::new(object, ctx);
+        let pikeobj =
+            unsafe { PikeObjectRef::<()>::from_ptr_add_ref(object, ctx) };
         PikeFunctionRef { pikeobj: pikeobj, fun_idx: fun_idx }
     }
 
     pub fn new_without_ref(object: *mut object, fun_idx: c_ushort)
     -> Self {
-        let pikeobj = PikeObjectRef::<()>::new_without_ref(object);
+        let pikeobj = unsafe { PikeObjectRef::<()>::from_ptr(object) };
         PikeFunctionRef { pikeobj: pikeobj, fun_idx: fun_idx }
-    }
-
-    // Cannot implement regular Clone trait since we need a &PikeContext
-    // argument.
-    pub fn clone(&self, ctx: &PikeContext) -> Self {
-        Self { pikeobj: self.pikeobj.clone(ctx), fun_idx: self.fun_idx }
-    }
-
-    pub fn unwrap<'ctx>(self, ctx: &'ctx PikeContext) -> PikeFunction<'ctx> {
-        PikeFunction { func_ref: self, ctx: ctx }
     }
 
     pub fn object_ptr(&self) -> *mut object {
