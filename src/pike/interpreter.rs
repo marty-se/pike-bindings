@@ -77,22 +77,15 @@ impl PikeContext {
 
     pub fn call_with_context<F, TRes>(closure: F) -> TRes
         where F: FnOnce(Self) -> TRes {
-            let mut cb_ctx = CallbackContext {
-                cb: RefCell::new(Some(closure)),
-                res: None
-            };
-            unsafe {
-                ::ffi::call_with_interpreter(Some(call_with_interpreter_cb::<F, TRes>),
-                    &mut cb_ctx as *mut _ as *mut c_void);
-            };
-            cb_ctx.res.unwrap()
-            /*
-        let callback = || {
-            let ctx = Self {no_send: PhantomData};
-            closure(ctx);
+        let mut cb_ctx = CallbackContext {
+            cb: RefCell::new(Some(closure)),
+            res: None
         };
-        call_helper(callback);
-        */
+        unsafe {
+            ::ffi::call_with_interpreter(Some(call_with_interpreter_cb::<F, TRes>),
+            &mut cb_ctx as *mut _ as *mut c_void);
+        };
+        cb_ctx.res.unwrap()
     }
 }
 

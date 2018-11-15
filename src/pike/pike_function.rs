@@ -5,8 +5,8 @@ use std::os::raw::c_ushort;
 
 #[derive(Debug)]
 pub struct PikeFunctionRef {
-  pikeobj: PikeObjectRef<()>,
-  fun_idx: c_ushort
+    pikeobj: PikeObjectRef<()>,
+    fun_idx: c_ushort
 }
 
 impl CloneWithCtx for PikeFunctionRef {
@@ -40,8 +40,8 @@ impl PikeFunctionRef {
 
 #[derive(Debug)]
 pub struct PikeFunction<'ctx> {
-  func_ref: PikeFunctionRef,
-  ctx: &'ctx PikeContext
+    func_ref: PikeFunctionRef,
+    ctx: &'ctx PikeContext
 }
 
 define_from_impls!(PikeFunctionRef, PikeFunction, Function, func_ref);

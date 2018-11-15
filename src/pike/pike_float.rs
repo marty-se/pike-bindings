@@ -2,7 +2,7 @@ use ::serde::ser::*;
 
 #[derive(Debug, Clone)]
 pub struct PikeFloat {
-  float_number: f64
+    float_number: f64
 }
 
 impl PikeFloat {
@@ -12,23 +12,23 @@ impl PikeFloat {
 }
 
 macro_rules! gen_from_type {
-  ($floattype: ident) => {
-    impl From<$floattype> for PikeFloat {
-      fn from(f: $floattype) -> PikeFloat {
-        return PikeFloat::new(f as f64);
-      }
-    }
-    impl From<PikeFloat> for $floattype {
-      fn from(f: PikeFloat) -> $floattype {
-        return f.float_number as $floattype;
-      }
-    }
-    impl<'a> From<&'a PikeFloat> for $floattype {
-      fn from(f: &'a PikeFloat) -> $floattype {
-        return f.float_number as $floattype;
-      }
-    }
-  };
+    ($floattype: ident) => {
+        impl From<$floattype> for PikeFloat {
+            fn from(f: $floattype) -> PikeFloat {
+                return PikeFloat::new(f as f64);
+            }
+        }
+        impl From<PikeFloat> for $floattype {
+            fn from(f: PikeFloat) -> $floattype {
+                return f.float_number as $floattype;
+            }
+        }
+        impl<'a> From<&'a PikeFloat> for $floattype {
+            fn from(f: &'a PikeFloat) -> $floattype {
+                return f.float_number as $floattype;
+            }
+        }
+    };
 }
 
 gen_from_type!(f64);

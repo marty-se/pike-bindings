@@ -107,21 +107,21 @@ impl<'ctx> Iterator for PikeMappingIterator<'ctx> {
 }
 
 impl<'ctx> IntoIterator for PikeMapping<'ctx> {
-  type Item = (PikeThing, PikeThing);
-  type IntoIter = PikeMappingIterator<'ctx>;
+    type Item = (PikeThing, PikeThing);
+    type IntoIter = PikeMappingIterator<'ctx>;
 
-  fn into_iter(self) -> Self::IntoIter {
-    let ctx = self.ctx;
-    let thing = PikeThing::Mapping(self.mapping_ref);
-    ctx.push_to_stack(thing);
-    unsafe { f_get_iterator(1); }
-    match ctx.pop_from_stack() {
-      PikeThing::Object(it) => {
-        PikeMappingIterator::<'ctx> { iterator: it.into_with_ctx(ctx) }
-      }
-      _ => panic!("Wrong type returned from f_get_iterator")
+    fn into_iter(self) -> Self::IntoIter {
+        let ctx = self.ctx;
+        let thing = PikeThing::Mapping(self.mapping_ref);
+        ctx.push_to_stack(thing);
+        unsafe { f_get_iterator(1); }
+        match ctx.pop_from_stack() {
+            PikeThing::Object(it) => {
+                PikeMappingIterator::<'ctx> { iterator: it.into_with_ctx(ctx) }
+            }
+            _ => panic!("Wrong type returned from f_get_iterator")
+        }
     }
-  }
 }
 
 impl<'a> IntoIterator for &'a PikeMapping<'a> {

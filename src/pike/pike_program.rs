@@ -38,7 +38,8 @@ where TStorage: Sized {
     ctx: &'ctx PikeContext
 }
 
-define_from_impls_with_storage!(PikeProgramRef, PikeProgram, Program, program_ref);
+define_from_impls_with_storage!(PikeProgramRef, PikeProgram, Program,
+    program_ref);
 
 impl<'ctx, 'a,  TStorage> From<&'a PikeProgram<'ctx, TStorage>>
 for PikeProgramRef<TStorage> {
@@ -58,7 +59,8 @@ impl<'ctx, TStorage> PikeProgram<'ctx, TStorage> {
         let new_prog_ptr: *mut program;
         unsafe {
             new_prog_ptr = debug_end_program();
-            let prog_ref = PikeProgramRef::<TStorage>::from_ptr_add_ref(new_prog_ptr, ctx);
+            let prog_ref =
+                PikeProgramRef::<TStorage>::from_ptr_add_ref(new_prog_ptr, ctx);
             prog_ref.into_with_ctx(ctx)
         }
     }
@@ -133,7 +135,7 @@ impl<'ctx, TStorage> PikeProgram<'ctx, TStorage> {
         let fname = ::std::ffi::CString::new(filename).unwrap();
         debug_start_new_program(line as i64, fname.as_ptr());
         low_add_storage(::std::mem::size_of::<TStorage>(),
-          ::std::mem::align_of::<TStorage>(), 0);
+            ::std::mem::align_of::<TStorage>(), 0);
         pike_set_prog_event_callback(Some(Self::prog_event_callback));
     }
 
@@ -142,7 +144,8 @@ impl<'ctx, TStorage> PikeProgram<'ctx, TStorage> {
         unsafe {
             let fname = ::std::ffi::CString::new(filename).unwrap();
             debug_start_new_program(line as i64, fname.as_ptr());
-            low_add_storage(::std::mem::size_of::<TStorage>(), ::std::mem::align_of::<TStorage>(), 0);
+            low_add_storage(::std::mem::size_of::<TStorage>(),
+                ::std::mem::align_of::<TStorage>(), 0);
             pike_set_prog_event_callback(Some(Self::prog_event_callback_default));
         }
     }
@@ -151,14 +154,14 @@ impl<'ctx, TStorage> PikeProgram<'ctx, TStorage> {
         match event as u32 {
             PROG_EVENT_INIT => {
                 let storage_data: TStorage = ::std::mem::zeroed();
-                let storage_ptr = (*(*Pike_interpreter_pointer).frame_pointer).current_storage
-                as *mut TStorage;
+                let frame_ptr = *(*Pike_interpreter_pointer).frame_pointer;
+                let storage_ptr = frame_ptr.current_storage as *mut TStorage;
                 ::std::ptr::write(storage_ptr, storage_data);
             },
             PROG_EVENT_EXIT => {
-                let storage = (*(*Pike_interpreter_pointer).frame_pointer).current_storage
-                as *mut TStorage;
-                ::std::mem::drop(storage);
+                let frame_ptr = *(*Pike_interpreter_pointer).frame_pointer;
+                let storage_ptr = frame_ptr.current_storage as *mut TStorage;
+                ::std::mem::drop(storage_ptr);
             },
             _ => {}
         }
@@ -169,14 +172,14 @@ impl<'ctx, TStorage> PikeProgram<'ctx, TStorage> {
         match event as u32 {
             PROG_EVENT_INIT => {
                 let storage_data: TStorage = Default::default();
-                let storage_ptr = (*(*Pike_interpreter_pointer).frame_pointer).current_storage
-                as *mut TStorage;
+                let frame_ptr = *(*Pike_interpreter_pointer).frame_pointer;
+                let storage_ptr = frame_ptr.current_storage as *mut TStorage;
                 ::std::ptr::write(storage_ptr, storage_data);
             },
             PROG_EVENT_EXIT => {
-                let storage = (*(*Pike_interpreter_pointer).frame_pointer).current_storage
-                as *mut TStorage;
-                ::std::mem::drop(storage);
+                let frame_ptr = *(*Pike_interpreter_pointer).frame_pointer;
+                let storage_ptr = frame_ptr.current_storage as *mut TStorage;
+                ::std::mem::drop(storage_ptr);
             },
             _ => {}
         }

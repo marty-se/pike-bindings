@@ -50,7 +50,8 @@ impl<'ctx> From<PikeString<'ctx>> for String {
                     // pike_string.str is strangely enough signed so we need to
                     // transmute to get the type we need.
                     let slice: &[i8] =
-                        ::std::slice::from_raw_parts(&((*pikestr).str[0]), (*pikestr).len as usize);
+                        ::std::slice::from_raw_parts(&((*pikestr).str[0]),
+                        (*pikestr).len as usize);
                     let slice2: &[u8] = ::std::mem::transmute(slice);
                     let mut v: ::std::vec::Vec<u8> = ::std::vec::Vec::new();
                     v.extend_from_slice(slice2);
@@ -79,7 +80,8 @@ impl<'a> From<&'a PikeString<'a>> for String {
                     // pike_string.str is strangely enough signed so we need to
                     // transmute to get the type we need.
                     let slice: &[i8] =
-                        ::std::slice::from_raw_parts(&((*pikestr).str[0]), (*pikestr).len as usize);
+                        ::std::slice::from_raw_parts(&((*pikestr).str[0]),
+                        (*pikestr).len as usize);
                     let slice2: &[u8] = ::std::mem::transmute(slice);
                     let mut v: ::std::vec::Vec<u8> = ::std::vec::Vec::new();
                     v.extend_from_slice(slice2);

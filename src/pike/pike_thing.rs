@@ -9,7 +9,8 @@ use serde::de::{Visitor, MapAccess, SeqAccess};
 
 pub trait Refcounted<TPtr>: Drop + CloneWithCtx {
     unsafe fn from_ptr<'ctx>(ptr: *mut TPtr) -> Self;
-    unsafe fn from_ptr_add_ref<'ctx>(ptr: *mut TPtr, ctx: &'ctx PikeContext) -> Self;
+    unsafe fn from_ptr_add_ref<'ctx>(ptr: *mut TPtr, ctx: &'ctx PikeContext)
+        -> Self;
     fn as_mut_ptr(&self) -> *mut TPtr;
 }
 
@@ -193,23 +194,23 @@ impl<'de> Deserialize<'de> for PikeThing {
         PikeContext::call_with_context(|ctx| {
             deserializer.deserialize_any(PikeThingVisitor { ctx: &ctx })
         })
-  }
+    }
 }
 
 impl From<()> for PikeThing {
-  fn from(_: ()) -> PikeThing {
-    return PikeThing::undefined();
-  }
+    fn from(_: ()) -> PikeThing {
+        return PikeThing::undefined();
+    }
 }
 
 macro_rules! gen_from_type_int {
-  ($inttype: ident) => {
-    impl From<$inttype> for PikeThing {
-      fn from(i: $inttype) -> PikeThing {
-      return PikeThing::Int(i.into());
-      }
-    }
-  };
+    ($inttype: ident) => {
+        impl From<$inttype> for PikeThing {
+            fn from(i: $inttype) -> PikeThing {
+                return PikeThing::Int(i.into());
+            }
+        }
+    };
 }
 
 gen_from_type_int!(u64);
@@ -223,13 +224,13 @@ gen_from_type_int!(i16);
 gen_from_type_int!(i8);
 
 macro_rules! gen_from_type_float {
-  ($floattype: ident) => {
-    impl From<$floattype> for PikeThing {
-      fn from(f: $floattype) -> PikeThing {
-      return PikeThing::Float(f.into());
-      }
-    }
-  };
+    ($floattype: ident) => {
+        impl From<$floattype> for PikeThing {
+            fn from(f: $floattype) -> PikeThing {
+                return PikeThing::Float(f.into());
+            }
+        }
+    };
 }
 
 gen_from_type_float!(f64);
