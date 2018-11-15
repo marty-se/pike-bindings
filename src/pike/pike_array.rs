@@ -35,10 +35,6 @@ pub struct PikeArray<'ctx> {
 define_from_impls!(PikeArrayRef, PikeArray, Array, array_ref);
 
 impl<'ctx> PikeArray<'ctx> {
-    pub fn from_ref(array_ref: PikeArrayRef, ctx: &'ctx PikeContext) -> Self {
-        Self { array_ref: array_ref, ctx: ctx }
-    }
-
     /// Returns an empty array with a pre-allocated capacity (but 0 size).
     pub fn with_capacity(capacity: usize, ctx: &'ctx PikeContext) -> Self {
         let array_ref = unsafe {

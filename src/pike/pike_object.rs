@@ -1,6 +1,7 @@
 use ::pike::*;
 use ::pike::interpreter::DropWithContext;
-use ::ffi::{debug_master, Pike_interpreter_pointer, object, PIKE_T_OBJECT, schedule_really_free_object};
+use ::ffi::{debug_master, Pike_interpreter_pointer, object,
+    schedule_really_free_object, svalue};
 use ::pike::interpreter::PikeContext;
 use ::std::marker::PhantomData;
 
@@ -44,32 +45,6 @@ impl<TStorage> PikeObjectRef<TStorage> {
     }
 }
 
-
-impl<TStorage> From<PikeObjectRef<TStorage>> for PikeThing {
-    fn from(t: PikeObjectRef<TStorage>) -> Self {
-        let untyped_obj: PikeObjectRef<()> = unsafe {::std::mem::transmute(t)};
-        PikeThing::Object(untyped_obj)
-    }
-}
-
-impl<TStorage> From<PikeObjectRef<TStorage>> for ::ffi::svalue {
-    fn from(t: PikeObjectRef<TStorage>) -> Self {
-        let a = ::ffi::anything { object: t.as_mut_ptr() };
-        let t = ::ffi::svalue__bindgen_ty_1__bindgen_ty_1 {
-            type_: PIKE_T_OBJECT as ::std::os::raw::c_ushort, subtype: 0 };
-        let tu = ::ffi::svalue__bindgen_ty_1 {t: t};
-        ::ffi::svalue {u: a, tu: tu}
-    }
-}
-
-impl<'ctx, TStorage> FromWithCtx<'ctx, PikeObjectRef<TStorage>>
-for PikeObject<'ctx, TStorage> {
-    fn from_with_ctx(obj_ref: PikeObjectRef<TStorage>, ctx: &'ctx PikeContext)
-        -> Self {
-        Self { object_ref: obj_ref, ctx: ctx, _phantom: PhantomData }
-    }
-}
-
 /// Represents a Pike object.
 /// Handles reference counting of the corresponding Pike object automatically.
 /// The TStorage type represents the type of the object's storage.
@@ -77,18 +52,12 @@ for PikeObject<'ctx, TStorage> {
 pub struct PikeObject<'ctx, TStorage>
 where TStorage: Sized {
     object_ref: PikeObjectRef<TStorage>,
-    ctx: &'ctx PikeContext,
-    _phantom: PhantomData<TStorage>
+    ctx: &'ctx PikeContext
 }
 
-impl<'ctx, TStorage> PikeObject<'ctx, TStorage> {
-    /*
-    pub unsafe fn from_ptr(object: *mut object, ctx: &'ctx PikeContext) -> Self {
-        let obj_ref = PikeObjectRef::from_ptr(object);
-        Self::from_with_ctx(obj_ref, ctx)
-    }
-    */
+define_from_impls_with_storage!(PikeObjectRef, PikeObject, Object, object_ref);
 
+impl<'ctx, TStorage> PikeObject<'ctx, TStorage> {
     /// Returns the object of the current Pike execution context.
     pub fn current_object(ctx: &'ctx PikeContext) -> Self {
         Self::from_with_ctx(PikeObjectRef::<TStorage>::current_object(ctx), ctx)

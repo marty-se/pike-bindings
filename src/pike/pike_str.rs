@@ -93,14 +93,20 @@ impl<'a> From<&'a PikeString<'a>> for String {
     }
 }
 
-impl<'ctx> PikeString<'ctx> {
-    pub fn from_string(s: String, ctx: &'ctx PikeContext) -> Self {
+impl<'ctx> FromWithCtx<'ctx, String> for PikeStringRef {
+    fn from_with_ctx(s: String, ctx: &'ctx PikeContext) -> Self {
+        let pike_str: PikeString = s.into_with_ctx(ctx);
+        pike_str.into()
+    }
+}
+
+impl<'ctx> FromWithCtx<'ctx, String> for PikeString<'ctx> {
+    fn from_with_ctx(s: String, ctx: &'ctx PikeContext) -> Self {
         let raw_str_ref = unsafe { PikeStringRef::from_ptr(
             debug_make_shared_binary_string(
                 s.as_ptr() as *const i8,
                 s.len(),
             )) };
-
         let pt = PikeThing::PikeString(raw_str_ref);
         ctx.push_to_stack(pt);
 
@@ -114,6 +120,9 @@ impl<'ctx> PikeString<'ctx> {
             }
         }
     }
+}
+
+impl<'ctx> PikeString<'ctx> {
 
     pub fn from_str_slice(s: &str, ctx: &'ctx PikeContext) -> Self {
         let raw_str_ref = unsafe { PikeStringRef::from_ptr(

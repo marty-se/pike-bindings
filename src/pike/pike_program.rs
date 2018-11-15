@@ -4,7 +4,7 @@ use ::pike::interpreter::DropWithContext;
 use std::ffi::CString;
 use ::std::marker::PhantomData;
 
-pub use ::ffi::{low_add_storage, pike_set_prog_event_callback, PROG_EVENT_INIT, PROG_EVENT_EXIT};
+use ::ffi::{low_add_storage, pike_set_prog_event_callback, PROG_EVENT_INIT, PROG_EVENT_EXIT};
 
 #[derive(Debug)]
 pub struct PikeProgramRef<TStorage>
@@ -38,14 +38,7 @@ where TStorage: Sized {
     ctx: &'ctx PikeContext
 }
 
-impl<'ctx, TStorage> Clone for PikeProgram<'ctx, TStorage> {
-    fn clone(&self) -> Self {
-        Self {
-            program_ref: self.program_ref.clone_with_ctx(self.ctx),
-            ctx: self.ctx
-        }
-    }
-}
+define_from_impls_with_storage!(PikeProgramRef, PikeProgram, Program, program_ref);
 
 impl<'ctx, 'a,  TStorage> From<&'a PikeProgram<'ctx, TStorage>>
 for PikeProgramRef<TStorage> {
@@ -55,12 +48,6 @@ for PikeProgramRef<TStorage> {
 }
 
 impl<'ctx, TStorage> PikeProgram<'ctx, TStorage> {
-    pub unsafe fn from_ptr(program: *mut program, ctx: &'ctx PikeContext)
-    -> Self {
-        let obj_ref = PikeProgramRef::from_ptr(program);
-        Self::from_ref(obj_ref, ctx)
-    }
-
     pub unsafe fn from_ref(program_ref: PikeProgramRef<TStorage>,
         ctx: &'ctx PikeContext) -> Self {
         Self { program_ref: program_ref, ctx: ctx }
@@ -71,8 +58,8 @@ impl<'ctx, TStorage> PikeProgram<'ctx, TStorage> {
         let new_prog_ptr: *mut program;
         unsafe {
             new_prog_ptr = debug_end_program();
-            let prog_ref = PikeProgramRef::from_ptr_add_ref(new_prog_ptr, ctx);
-            Self::from_ref(prog_ref, ctx)
+            let prog_ref = PikeProgramRef::<TStorage>::from_ptr_add_ref(new_prog_ptr, ctx);
+            prog_ref.into_with_ctx(ctx)
         }
     }
 
@@ -111,7 +98,8 @@ impl<'ctx, TStorage> PikeProgram<'ctx, TStorage> {
     pub fn current_compilation(ctx: &'ctx PikeContext) -> Self {
         unsafe {
             let prog_ptr = (*Pike_compiler).new_program;
-            Self::from_ptr(prog_ptr, ctx)
+            PikeProgramRef::<TStorage>::from_ptr_add_ref(prog_ptr, ctx)
+                .into_with_ctx(ctx)
         }
     }
 
@@ -192,109 +180,5 @@ impl<'ctx, TStorage> PikeProgram<'ctx, TStorage> {
             },
             _ => {}
         }
-    }
-}
-
-/*
-impl<'a, TStorage> From<&'a PikeProgram<TStorage>> for ::ffi::svalue {
-    fn from(t: &PikeProgram<TStorage>) -> Self {
-        let a = ::ffi::anything { program: t.program };
-        let t = ::ffi::svalue__bindgen_ty_1__bindgen_ty_1 {
-            type_: PIKE_T_OBJECT as ::std::os::raw::c_ushort, subtype: 0 };
-        let tu = ::ffi::svalue__bindgen_ty_1 {t: t};
-        return ::ffi::svalue {u: a, tu: tu};
-    }
-}
-
-impl<TStorage> Clone for PikeProgram<TStorage> {
-    fn clone(&self) -> Self {
-        unsafe {
-            let program: *mut program = self.program;
-            (*program).refs += 1;
-        }
-        PikeProgram { program: self.program, _phantom: PhantomData }
-    }
-}
-
-impl<TStorage> Drop for PikeProgram<TStorage> {
-    fn drop(&mut self) {
-        unsafe {
-            let program: *mut program = self.program;
-            (*program).refs -= 1;
-            if (*program).refs == 0 {
-                really_free_program(program);
-            }
-        }
-    }
-}
-*/
-
-pub fn end_class(name: &str) {
-  let class_name = ::std::ffi::CString::new(name).unwrap();
-  unsafe {
-    let prog: *mut program = debug_end_program();
-    add_program_constant(class_name.as_ptr(), prog, 0);
-  }
-}
-
-pub enum FnCallResult<T, E> {
-    Ok(T),
-    Err(E),
-}
-
-impl<T, E> Into<Result<T, E>> for FnCallResult<T, E> {
-
-    fn into(self) -> Result<T, E> {
-        match self {
-            FnCallResult::Ok(v) => {
-                Result::Ok(v)
-            },
-            FnCallResult::Err(e) => {
-                Result::Err(e)
-            }
-        }
-    }
-}
-
-
-impl<T, E> From<Result<T, E>> for FnCallResult<T, E> {
-
-    fn from(res: Result<T, E>) -> Self {
-        match res {
-            Ok(v) => {
-                FnCallResult::Ok(v)
-            },
-            Err(e) => {
-                FnCallResult::Err(e)
-            }
-        }
-    }
-}
-
-/*
-impl<T, E> From<Result<T, E>> for FnCallResult<PikeThing, PikeError>
-where
-    T: Into<PikeThing>,
-    E: Into<PikeError> {
-
-    fn from(res: Result<T, E>) -> Self {
-        match res {
-            Ok(v) => {
-                FnCallResult::Ok(v.into())
-            },
-            Err(e) => {
-                FnCallResult::Err(e.into())
-            }
-        }
-    }
-}
-*/
-
-impl<T> From<T> for FnCallResult<PikeThing, PikeError>
-where
-    PikeThing: From<T> {
-
-    fn from(val: T) -> Self {
-        FnCallResult::Ok(PikeThing::from(val))
     }
 }

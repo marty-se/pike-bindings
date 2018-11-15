@@ -138,68 +138,74 @@ macro_rules! define_from_impls {
                 Self { $refname, ctx }
             }
         }
-    )
-}
-/*
-macro_rules! define_into_svalue {
-    ($reftype:ident, $piketype:ident) => (
-        impl From<$reftype> for svalue {
-            fn from(s: $svalue) -> Self {
-                // The reference is simply transferred, so we'll
-                let res = Self { $piketype: s.u.$piketype };
-                ::std::mem::forget(s);
-                res
+
+        impl<'ctx, 'a> FromWithCtx<'ctx, &'a $reftype> for $type<'ctx> {
+            fn from_with_ctx($refname: &$reftype, ctx: &'ctx PikeContext) -> Self {
+                Self { $refname: $refname.clone_with_ctx(ctx), ctx }
             }
         }
     )
 }
-*/
-/*
-macro_rules! def_pike_type {
-  ($reftype:ident, $ptype:ident, $anything_type:ident, $svalue_type:ident,
-   $free_func:ident) => (
 
-    impl $reftype {
-        pub fn new($ptype: *mut $ptype, _ctx: &PikeContext) -> Self {
-            unsafe {
-                (*$ptype).refs += 1;
+macro_rules! define_from_impls_with_storage {
+    ($reftype:ident, $type:ident, $pikethingtype:ident, $refname:ident) => (
+        impl<'ctx, TStorage> From<$type<'ctx, TStorage>> for $reftype<TStorage> {
+            fn from(t: $type<TStorage>) -> Self {
+                t.$refname
             }
-            $reftype { $ptype: $ptype }
         }
 
-        // Cannot implement regular Clone trait since we need a &PikeContext
-        // argument.
-        pub fn clone(&self, ctx: &PikeContext) -> Self {
-            Self::new(self.$ptype, ctx)
-        }
-    }
-*/
-/*
-    impl Clone for $reftype {
-        fn clone(&self) -> Self {
-            unsafe {
-                let $ptype: *mut $ptype = self.$ptype;
-                (*$ptype).refs += 1;
+        impl<'ctx, TStorage> From<$type<'ctx, TStorage>> for PikeThing {
+            fn from(t: $type<TStorage>) -> Self {
+                $reftype::from(t).into()
             }
-            $reftype { $ptype: self.$ptype }
         }
-    }
-*/
-/*
-    impl Drop for $reftype {
-        fn drop(&mut self) {
-          // FIXME: Push object to a release pool that is processed somewhere,
-          // perhaps in the Drop trait impl for PikeContext?
-/*
-            unsafe {
-                let $ptype: *mut $ptype = self.$ptype;
-                (*$ptype).refs -= 1;
-                if (*$ptype).refs == 0 {
-                    $free_func($ptype);
+
+        impl<'ctx, 'a, TStorage> From<&'a $type<'ctx, TStorage>> for svalue {
+            fn from(t_ref: &$type<TStorage>) -> Self {
+                let t: $type<TStorage> = t_ref.clone();
+                t.into()
+            }
+        }
+
+        impl<'ctx, TStorage> From<$type<'ctx, TStorage>> for svalue {
+            fn from(t: $type<TStorage>) -> Self {
+                PikeThing::from(t).into()
+            }
+        }
+
+        impl<'ctx, TStorage> Clone for $type<'ctx, TStorage> {
+            fn clone(&self) -> Self {
+                Self {
+                    $refname: self.$refname.clone_with_ctx(self.ctx),
+                    ctx: self.ctx
                 }
             }
-            */
         }
-    }
-)}
-*/
+
+        impl<TStorage> From<$reftype<TStorage>> for PikeThing {
+            fn from(f: $reftype<TStorage>) -> Self {
+                let untyped_obj: $reftype<()> = unsafe {
+                    std::mem::transmute(f)
+                };
+                PikeThing::$pikethingtype(untyped_obj)
+            }
+        }
+
+        impl<'ctx, TStorage> FromWithCtx<'ctx, $reftype<TStorage>>
+            for $type<'ctx, TStorage> {
+            fn from_with_ctx($refname: $reftype<TStorage>,
+                ctx: &'ctx PikeContext) -> Self {
+                Self { $refname, ctx }
+            }
+        }
+
+        impl<'ctx, 'a, TStorage> FromWithCtx<'ctx, &'a $reftype<TStorage>>
+            for $type<'ctx, TStorage> {
+            fn from_with_ctx($refname: &$reftype<TStorage>,
+                ctx: &'ctx PikeContext) -> Self {
+                Self { $refname: $refname.clone_with_ctx(ctx), ctx }
+            }
+        }
+    )
+}

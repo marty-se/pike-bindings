@@ -31,36 +31,14 @@ impl<'ctx, T, U> IntoWithCtx<'ctx, U> for T where U: FromWithCtx<'ctx, T>
         U::from_with_ctx(self, ctx)
     }
 }
-/*
-#[derive(Debug)]
-pub struct Ref<T, TPtr>
-where T: Refcounted<TPtr> {
-    _phantom: PhantomData<T>
-}
 
-impl<T> Ref<T>
-where T: Refcounted {
-    pub fn new(ptr: *mut TPtr, _ctx: &PikeContext) -> Self {
-        let t = unsafe { &mut *ptr };
-        t.add_ref();
-        Self { ptr: ptr, _phantom: PhantomData }
-    }
-
-    pub unsafe fn new_without_ref(ptr: *mut TPtr) -> Self {
-        Self { ptr: ptr, _phantom: PhantomData }
-    }
-
-    // Cannot implement regular Clone trait since we need a &PikeContext
-    // argument.
-    pub fn clone(&self, ctx: &PikeContext) -> Self {
-        Self::new(self.ptr, ctx)
-    }
-
-    pub fn as_mut_ptr(&self) -> *mut TPtr {
-        self.ptr
+impl<'ctx, T, U> FromWithCtx<'ctx, T> for U where U: From<T>
+{
+    fn from_with_ctx(val: T, _ctx: &'ctx PikeContext) -> Self {
+        Self::from(val)
     }
 }
-*/
+
 /// The `PikeThing` type. Equivalent to Pike's `svalue` type, with Rust idioms.
 #[derive(Debug)]
 pub enum PikeThing {
