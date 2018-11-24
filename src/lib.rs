@@ -1,4 +1,3 @@
-#![feature(unboxed_closures, fn_traits)]
 extern crate pike_macros;
 extern crate serde;
 extern crate lazy_static;
