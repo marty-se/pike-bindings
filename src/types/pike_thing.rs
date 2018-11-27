@@ -1,30 +1,11 @@
-use ::pike::*;
-use ::pike::pike_svalue::svalue;
+use ::types::type_deps::*;
 use ::serde::ser::*;
 use ::serde::*;
+use ::ffi::svalue;
 
 use std::fmt;
 
 use serde::de::{Visitor, MapAccess, SeqAccess};
-
-pub trait Refcounted<TPtr>: Drop + CloneWithCtx {
-    unsafe fn from_ptr<'ctx>(ptr: *mut TPtr) -> Self;
-    unsafe fn from_ptr_add_ref<'ctx>(ptr: *mut TPtr, ctx: &'ctx PikeContext)
-        -> Self;
-    fn as_mut_ptr(&self) -> *mut TPtr;
-}
-
-pub trait CloneWithCtx: Sized {
-    fn clone_with_ctx<'ctx>(&self, ctx: &'ctx PikeContext) -> Self;
-}
-
-pub trait FromWithCtx<'ctx, T>: Sized {
-    fn from_with_ctx(_: T, ctx: &'ctx PikeContext) -> Self;
-}
-
-pub trait IntoWithCtx<'ctx, T>: Sized {
-    fn into_with_ctx(self, ctx: &'ctx PikeContext) -> T;
-}
 
 impl<'ctx, T, U> IntoWithCtx<'ctx, U> for T where U: FromWithCtx<'ctx, T>
 {

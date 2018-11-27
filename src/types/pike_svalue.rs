@@ -1,4 +1,6 @@
-use ::pike::*;
+use ::types::type_deps::*;
+use ::interpreter::PikeContext;
+
 pub use ::ffi::svalue;
 use ::ffi::{PIKE_T_FLOAT, PIKE_T_INT, PIKE_T_ARRAY, PIKE_T_FUNCTION,
     PIKE_T_MAPPING, PIKE_T_MULTISET, PIKE_T_OBJECT, PIKE_T_PROGRAM, PIKE_T_TYPE,

@@ -1,9 +1,3 @@
-//use ::ffi::*;
-use std::ptr;
-
-#[macro_use]
-mod macros;
-
 mod pike_array;
 pub use self::pike_array::{PikeArray, PikeArrayRef};
 
@@ -38,9 +32,8 @@ mod pike_svalue;
 mod pike_thing;
 pub use self::pike_thing::*;
 
-pub mod error;
-
-pub use self::error::PikeError;
-
-pub mod interpreter;
-pub use self::interpreter::PikeContext;
+mod type_deps {
+    pub use ::interpreter::{PikeError, PikeContext};
+    pub use ::traits::*;
+    pub use ::types::*;
+}

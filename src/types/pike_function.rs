@@ -1,5 +1,5 @@
-use ::pike::*;
-use ::pike::interpreter::PikeContext;
+use ::types::type_deps::*;
+
 use ::ffi::{svalue, apply_svalue, object};
 use std::os::raw::c_ushort;
 

@@ -1,6 +1,5 @@
-use ::pike::*;
+use ::types::type_deps::*;
 use ::serde::ser::*;
-use ::pike::interpreter::DropWithContext;
 use ::ffi::{mapping, really_free_mapping, debug_allocate_mapping,
     mapping_insert, f_aggregate_mapping, f_get_iterator, svalue};
 
@@ -36,10 +35,6 @@ pub struct PikeMapping<'a> {
 define_from_impls!(PikeMappingRef, PikeMapping, Mapping, mapping_ref);
 
 impl<'ctx> PikeMapping<'ctx> {
-    pub fn from_ref(mapping_ref: PikeMappingRef, ctx: &'ctx PikeContext) -> Self {
-        Self { mapping_ref: mapping_ref, ctx: ctx }
-    }
-
     pub fn with_capacity(size: usize, ctx: &'ctx PikeContext) -> Self {
         let mapping_ref = unsafe {
             PikeMappingRef::from_ptr(debug_allocate_mapping(size as i32))
@@ -64,7 +59,7 @@ impl<'ctx> PikeMapping<'ctx> {
         }
         let res_thing = ctx.pop_from_stack();
         match res_thing {
-            PikeThing::Mapping(m) => { Self::from_ref(m, ctx) },
+            PikeThing::Mapping(m) => { m.into_with_ctx(ctx) },
             _ => { panic!("Wrong type returned from f_aggregate_mapping"); }
         }
     }

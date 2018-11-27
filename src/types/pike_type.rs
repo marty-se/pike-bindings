@@ -1,5 +1,4 @@
-use ::pike::*;
-use ::pike::interpreter::DropWithContext;
+use ::types::type_deps::*;
 use ::ffi::{pike_type, really_free_pike_type};
 
 #[derive(Debug)]

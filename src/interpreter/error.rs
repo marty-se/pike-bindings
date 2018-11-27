@@ -1,7 +1,9 @@
 #![allow(non_camel_case_types)]
 include!(concat!(env!("OUT_DIR"), "/sys-bindings.rs"));
 
-use pike::*;
+use types::*;
+use interpreter::PikeContext;
+use traits::{IntoWithCtx, Refcounted};
 use ffi::*;
 
 use ::std::os::raw::{c_char, c_int};

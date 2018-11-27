@@ -1,8 +1,6 @@
-use ::pike::*;
-use ::pike::interpreter::DropWithContext;
+use ::types::type_deps::*;
 use ::ffi::{debug_master, Pike_interpreter_pointer, object,
     schedule_really_free_object, svalue};
-use ::pike::interpreter::PikeContext;
 use ::std::marker::PhantomData;
 
 #[derive(Debug)]

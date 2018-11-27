@@ -4,13 +4,11 @@ use ::std::os::raw::c_void;
 use ::lazy_static::*;
 use ::std::sync::Mutex;
 use ::std::cell::RefCell;
+use ::std::ptr;
+use ::traits::DropWithContext;
 
-use ::pike::*;
+use ::types::*;
 use ::ffi::*;
-
-pub trait DropWithContext {
-    fn drop_with_context(&self, ctx: &PikeContext);
-}
 
 struct DroppableContainer {
     droppable_box: Box<DropWithContext + Send>
@@ -21,7 +19,7 @@ lazy_static! {
         Mutex::new(Vec::new());
 }
 
-pub fn drop_with_context<D>(droppable: D)
+pub(crate) fn drop_with_context<D>(droppable: D)
 where D: DropWithContext + Send + 'static {
     let mut guard = DEFERRED_RELEASES.lock().expect("Mutex lock failed");
 
