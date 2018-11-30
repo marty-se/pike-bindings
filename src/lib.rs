@@ -42,4 +42,7 @@ pub mod module {
   pub use interpreter::prepare_error_message as prepare_error_message;
 
   pub use interpreter::{PikeContext};
+
+  pub use traits::*;
+  pub use types::*;
 }
