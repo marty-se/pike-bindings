@@ -8,11 +8,12 @@ macro_rules! refcounted_type {
         unsafe impl Send for $drophandler {}
 
         impl Refcounted<$rawtype> for $reftype {
-            unsafe fn from_ptr<'ctx>(ptr: *mut $rawtype) -> Self {
+            unsafe fn from_ptr(ptr: *mut $rawtype) -> Self {
                 Self { ptr }
             }
 
-            unsafe fn from_ptr_add_ref<'ctx>(ptr: *mut $rawtype, _ctx: &'ctx PikeContext) -> Self {
+            unsafe fn from_ptr_add_ref(ptr: *mut $rawtype, _ctx: &PikeContext)
+            -> Self {
                 (*ptr).refs += 1;
                 Self::from_ptr(ptr)
             }
@@ -56,11 +57,12 @@ macro_rules! refcounted_type_with_storage {
         unsafe impl Send for $drophandler {}
 
         impl<TStorage> Refcounted<$rawtype> for $reftype<TStorage> {
-            unsafe fn from_ptr<'ctx>(ptr: *mut $rawtype) -> Self {
+            unsafe fn from_ptr(ptr: *mut $rawtype) -> Self {
                 Self { ptr, _phantom: PhantomData }
             }
 
-            unsafe fn from_ptr_add_ref<'ctx>(ptr: *mut $rawtype, _ctx: &'ctx PikeContext) -> Self {
+            unsafe fn from_ptr_add_ref(ptr: *mut $rawtype, _ctx: &PikeContext)
+            -> Self {
                 (*ptr).refs += 1;
                 Self::from_ptr(ptr)
             }

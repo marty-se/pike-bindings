@@ -1,10 +1,8 @@
-#![allow(non_camel_case_types)]
-include!(concat!(env!("OUT_DIR"), "/sys-bindings.rs"));
-
 use types::*;
 use interpreter::PikeContext;
 use traits::{IntoWithCtx, Refcounted};
 use ffi::*;
+use ffi::sys_bindings::*;
 
 use ::std::os::raw::{c_char, c_int};
 use ::std::ptr::{null_mut};
@@ -87,7 +85,7 @@ impl PikeContext {
         match pt {
             PikeThing::PikeString(s) => {
                 let ps: *mut pike_string = s.as_mut_ptr();
-                let fmt_str: *const c_char = ::std::mem::transmute(&((*ps).str));
+                let fmt_str = &((*ps).str) as *const c_char;
                 ::ffi::Pike_error(fmt_str);
             }
             _ => {
@@ -102,6 +100,10 @@ impl PikeContext {
     /// may perform heap allocations, or that are in some other way dependent on
     /// being Dropped properly, before calling any Pike code that may throw
     /// Pike errors.
+
+    // We don't have the type of buf.recovery in our bindings currently since
+    // LOW_JMP_BUF is a define, so we'll work around it with a transmute below.
+    #[allow(clippy::useless_transmute)]
     pub fn catch_pike_error<F, TRes>(&self, closure: F) -> Result<TRes, PikeError>
     where F: FnOnce() -> TRes {
         let mut buf;

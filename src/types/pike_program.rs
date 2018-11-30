@@ -45,6 +45,12 @@ for PikeProgramRef<TStorage> {
     }
 }
 
+macro_rules! storage_type {
+    () => {
+        *mut TStorage
+    };
+}
+
 impl<'ctx, TStorage> PikeProgram<'ctx, TStorage> {
     pub unsafe fn from_ref(program_ref: PikeProgramRef<TStorage>,
         ctx: &'ctx PikeContext) -> Self {
@@ -62,35 +68,23 @@ impl<'ctx, TStorage> PikeProgram<'ctx, TStorage> {
         }
     }
 
-    pub fn clone_object(&self) -> Result<PikeObject<()>, PikeError> {
-        self.ctx.catch_pike_error(|| {
-              let obj: *mut object;
-              unsafe {
-                  obj = debug_clone_object(self.program_ref.ptr, 0);
-                  PikeObjectRef::<()>::from_ptr(obj).into_with_ctx(self.ctx)
-              }
-        })
-    }
-
-    pub fn clone_object_with_data(&self, data: TStorage)
+    #[allow(clippy::cast_ptr_alignment)]
+    pub fn clone_object(&self, data: TStorage)
       -> Result<PikeObject<TStorage>, PikeError> {
-          self.ctx.catch_pike_error(|| {
-              let obj: *mut object;
-              let res_obj: PikeObject<TStorage>;
-              unsafe {
-                  obj = debug_clone_object(self.program_ref.ptr, 0);
-                  res_obj = PikeObjectRef::<TStorage>::from_ptr(obj)
-                      .into_with_ctx(self.ctx);
-              }
+        self.ctx.catch_pike_error(|| {
+            let obj: *mut object;
+            let res_obj: PikeObject<TStorage>;
+            let storage_ptr: *mut storage_type!();
+            unsafe {
+                obj = debug_clone_object(self.program_ref.ptr, 0);
+                storage_ptr = (*obj).storage as *mut storage_type!();
+                res_obj = PikeObjectRef::<TStorage>::from_ptr(obj)
+                    .into_with_ctx(self.ctx);
+                *storage_ptr = Box::into_raw(Box::new(data));
+            }
 
-              {
-                  let storage = res_obj.wrapped();
-                  unsafe {
-                      ::std::ptr::write(storage, data);
-                  }
-              }
-              res_obj
-          })
+            res_obj
+        })
     }
 
     /// Returns the program that is currently being compiled.
@@ -104,7 +98,7 @@ impl<'ctx, TStorage> PikeProgram<'ctx, TStorage> {
 
     /// Adds the provided program to the program currently being compiled,
     /// with the provided name.
-    pub fn add_program_constant(name: &str, prog: Self) {
+    pub fn add_program_constant(_ctx: &PikeContext, name: &str, prog: &Self) {
         let cname = ::std::ffi::CString::new(name).unwrap();
         unsafe {
             add_program_constant(cname.as_ptr(), prog.program_ref.ptr, 0);
@@ -112,7 +106,8 @@ impl<'ctx, TStorage> PikeProgram<'ctx, TStorage> {
     }
 
     /// Adds a function to the program currently being compiled.
-    pub fn add_pike_func(name: &str, type_str: &str, fun: unsafe extern "C" fn(i32) -> ())
+    pub fn add_pike_func(_ctx: &PikeContext, name: &str, type_str: &str,
+        fun: unsafe extern "C" fn(i32) -> ())
     {
         let func_name = CString::new(name).unwrap();
         let func_type = CString::new(type_str).unwrap();
@@ -125,58 +120,37 @@ impl<'ctx, TStorage> PikeProgram<'ctx, TStorage> {
         }
     }
 
-    // Calling this function is unsafe because object storage is zeroed on
-    // initialization. Thus, clone_object_with_data must be used to initialize
-    // storage when an object is instantiated.
-    pub unsafe fn start_new_program(filename: &str, line: u32) {
+    pub fn start_new_program(_ctx: &PikeContext,
+        filename: &str, line: u32) {
         let fname = ::std::ffi::CString::new(filename).unwrap();
-        debug_start_new_program(line as i64, fname.as_ptr());
-        low_add_storage(::std::mem::size_of::<TStorage>(),
-            ::std::mem::align_of::<TStorage>(), 0);
-        pike_set_prog_event_callback(Some(Self::prog_event_callback));
-    }
-
-    pub fn start_new_program_with_default(filename: &str, line: u32)
-    where TStorage: Default {
         unsafe {
-            let fname = ::std::ffi::CString::new(filename).unwrap();
-            debug_start_new_program(line as i64, fname.as_ptr());
-            low_add_storage(::std::mem::size_of::<TStorage>(),
-                ::std::mem::align_of::<TStorage>(), 0);
-            pike_set_prog_event_callback(Some(Self::prog_event_callback_default));
+            debug_start_new_program(line.into(), fname.as_ptr());
+            low_add_storage(::std::mem::size_of::<storage_type!()>(),
+                ::std::mem::align_of::<storage_type!()>(), 0);
+            pike_set_prog_event_callback(Some(Self::prog_event_callback));
         }
     }
 
+    // low_add_storage ensures that object storage (i.e. frame_ptr.current_storage)
+    // is aligned properly, so we'll ignore the clippy lint here.
+    #[allow(clippy::cast_ptr_alignment)]
     unsafe extern "C" fn prog_event_callback(event: i32) {
         match event as u32 {
             PROG_EVENT_INIT => {
-                let storage_data: TStorage = ::std::mem::zeroed();
                 let frame_ptr = *(*Pike_interpreter_pointer).frame_pointer;
-                let storage_ptr = frame_ptr.current_storage as *mut TStorage;
-                ::std::ptr::write(storage_ptr, storage_data);
+                let storage_ptr =
+                    frame_ptr.current_storage as *mut storage_type!();
+                *storage_ptr = ::std::ptr::null_mut();
             },
             PROG_EVENT_EXIT => {
                 let frame_ptr = *(*Pike_interpreter_pointer).frame_pointer;
-                let storage_ptr = frame_ptr.current_storage as *mut TStorage;
-                ::std::mem::drop(storage_ptr);
-            },
-            _ => {}
-        }
-    }
-
-    unsafe extern "C" fn prog_event_callback_default(event: i32)
-    where TStorage: Default {
-        match event as u32 {
-            PROG_EVENT_INIT => {
-                let storage_data: TStorage = Default::default();
-                let frame_ptr = *(*Pike_interpreter_pointer).frame_pointer;
-                let storage_ptr = frame_ptr.current_storage as *mut TStorage;
-                ::std::ptr::write(storage_ptr, storage_data);
-            },
-            PROG_EVENT_EXIT => {
-                let frame_ptr = *(*Pike_interpreter_pointer).frame_pointer;
-                let storage_ptr = frame_ptr.current_storage as *mut TStorage;
-                ::std::mem::drop(storage_ptr);
+                let storage_ptr =
+                    frame_ptr.current_storage as *mut storage_type!();
+                if !(*storage_ptr).is_null() {
+                    // Transfer ownership of pointer to Box, and drop it.
+                    Box::from_raw(*storage_ptr);
+                    *storage_ptr = ::std::ptr::null_mut();
+                }
             },
             _ => {}
         }

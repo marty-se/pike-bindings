@@ -75,6 +75,10 @@ impl<'ctx> PikeArray<'ctx> {
             (*self.array_ref.as_mut_ptr()).size as usize
         }
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 pub struct PikeArrayIterator<'ctx> {

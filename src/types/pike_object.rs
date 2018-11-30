@@ -86,19 +86,31 @@ impl<'ctx, TStorage> PikeObject<'ctx, TStorage> {
     }
 
     /// Returns a reference to the data contained by this Pike object.
-    pub fn wrapped<'s>(&'s self) -> &'s mut TStorage {
+    // Pike ensures that object storage is aligned properly, so we'll ignore the
+    // clippy lint here.
+    #[allow(clippy::cast_ptr_alignment)]
+    pub fn wrapped(&mut self) -> &mut TStorage {
         unsafe {
-            let ptr = (*self.object_ref.as_mut_ptr()).storage as *mut TStorage;
-            &mut *ptr
+            let ptr =
+                (*self.object_ref.as_mut_ptr()).storage as *const *mut TStorage;
+            assert!(!(*ptr).is_null());
+            &mut **ptr
         }
     }
 
     /// Replaces the storage of this object.
+    // Pike ensures that object storage is aligned properly, so we'll ignore the
+    // clippy lint here.
+    #[allow(clippy::cast_ptr_alignment)]
     pub fn update_data(&self, data: TStorage) {
         unsafe {
-            let ptr = (*self.object_ref.as_mut_ptr()).storage as *mut TStorage;
-            ::std::mem::drop(ptr);
-            ::std::ptr::write(ptr, data);
+            let storage_ptr =
+                (*self.object_ref.as_mut_ptr()).storage as *mut *mut TStorage;
+            if !(*storage_ptr).is_null() {
+                // Drop current Box
+                Box::from_raw(*storage_ptr);
+            }
+            *storage_ptr = Box::into_raw(Box::new(data));
         }
     }
 }

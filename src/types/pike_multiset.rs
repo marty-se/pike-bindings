@@ -40,6 +40,10 @@ impl<'ctx> PikeMultiset<'ctx> {
             multiset_sizeof(self.multiset_ref.ptr) as usize
         }
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 pub struct PikeMultisetIterator<'ctx> {

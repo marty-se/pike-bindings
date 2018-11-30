@@ -69,6 +69,10 @@ impl<'ctx> PikeMapping<'ctx> {
             (*(*self.mapping_ref.ptr).data).size as usize
         }
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 pub struct PikeMappingIterator<'ctx> {

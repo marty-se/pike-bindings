@@ -3,6 +3,9 @@
 #![allow(non_camel_case_types)]
 #![allow(non_upper_case_globals)]
 #![allow(non_snake_case)]
+
+// Not much we can do about clippy lints in bindgen output.
+#![allow(clippy::all)]
 include!(concat!(env!("OUT_DIR"), "/pike-ffi.rs"));
 
 impl std::fmt::Debug for array {
@@ -11,4 +14,8 @@ impl std::fmt::Debug for array {
             .field("refs", &self.refs)
             .finish()
     }
+}
+
+pub mod sys_bindings {
+    include!(concat!(env!("OUT_DIR"), "/sys-bindings.rs"));
 }

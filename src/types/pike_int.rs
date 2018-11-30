@@ -20,7 +20,7 @@ impl<'a> From<&'a PikeInt> for svalue {
             type_: PIKE_T_INT as ::std::os::raw::c_ushort, subtype: 0
         };
         let tu = ::ffi::svalue__bindgen_ty_1 {t: t};
-        return ::ffi::svalue {u: a, tu: tu};
+        ::ffi::svalue {u: a, tu: tu}
     }
 }
 
@@ -28,9 +28,7 @@ macro_rules! gen_from_type {
     ($inttype: ident) => {
         impl From<$inttype> for PikeInt {
             fn from(i: $inttype) -> PikeInt {
-                // FIXME: Lossy conversion of u64
-                // (and i64 + u32 on 32-bit machines).
-                return PikeInt::new(i as c_long);
+                return PikeInt::new(i.into());
             }
         }
         impl From<PikeInt> for $inttype {
@@ -46,7 +44,8 @@ macro_rules! gen_from_type {
     };
 }
 
-gen_from_type!(u64);
+// FIXME: Convert overflowing types to Pike bignums?
+//gen_from_type!(u64);
 gen_from_type!(u32);
 gen_from_type!(u16);
 gen_from_type!(u8);

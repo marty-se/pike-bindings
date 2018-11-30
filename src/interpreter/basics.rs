@@ -35,15 +35,12 @@ where F: FnOnce(PikeContext) -> TRes {
 
 extern "C" fn call_with_interpreter_cb<F, TRes>(cb_ptr: *mut c_void)
 where F: FnOnce(PikeContext) -> TRes {
-    let cb_ctx: &mut CallbackContext<F, TRes> =
-        unsafe { ::std::mem::transmute(cb_ptr) };
+    let cb_ctx_ptr = cb_ptr as *mut CallbackContext<F, TRes>;
+    let cb_ctx = unsafe { &mut *cb_ctx_ptr };
 
-    match cb_ctx.cb.replace(None) {
-        Some(cb) => {
-            let ctx = PikeContext { no_send: PhantomData };
-            cb_ctx.res = Some(cb(ctx));
-        }
-        None => {}
+    if let Some(cb) = cb_ctx.cb.replace(None) {
+        let ctx = PikeContext { no_send: PhantomData };
+        cb_ctx.res = Some(cb(ctx));
     }
 }
 
@@ -123,7 +120,7 @@ impl PikeContext {
         unsafe {
             sval = &(*(*Pike_interpreter_pointer).stack_pointer.offset(pos));
         }
-        return sval.clone(self).into();
+        sval.clone(self).into()
     }
 
     /// Pushes a PikeThing to the Pike stack.
@@ -148,7 +145,7 @@ impl PikeContext {
             res = sval.clone(self).into();
             ptr::write(sp, svalue::undefined());
         }
-        return res;
+        res
     }
 
     /// Pops and discards the specified number of entries from the Pike stack.

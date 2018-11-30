@@ -51,7 +51,7 @@ impl<'ctx> From<PikeString<'ctx>> for String {
                     let slice: &[i8] =
                         ::std::slice::from_raw_parts(&((*pikestr).str[0]),
                         (*pikestr).len as usize);
-                    let slice2: &[u8] = ::std::mem::transmute(slice);
+                    let slice2: &[u8] = &*(slice as *const [i8] as *const [u8]);
                     let mut v: ::std::vec::Vec<u8> = ::std::vec::Vec::new();
                     v.extend_from_slice(slice2);
                     String::from_utf8(v).unwrap()
@@ -81,7 +81,7 @@ impl<'a> From<&'a PikeString<'a>> for String {
                     let slice: &[i8] =
                         ::std::slice::from_raw_parts(&((*pikestr).str[0]),
                         (*pikestr).len as usize);
-                    let slice2: &[u8] = ::std::mem::transmute(slice);
+                    let slice2: &[u8] = &*(slice as *const [i8] as *const [u8]);
                     let mut v: ::std::vec::Vec<u8> = ::std::vec::Vec::new();
                     v.extend_from_slice(slice2);
                     ::std::string::String::from_utf8(v).unwrap()
@@ -152,6 +152,7 @@ impl<'ctx> PikeString<'ctx> {
                 v.as_ptr() as *const i8,
                 v.len(),
             )) };
+        ::std::mem::drop(v);
         PikeString { string_ref: str_ref, ctx: ctx }
     }
 

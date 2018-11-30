@@ -16,16 +16,15 @@ impl CloneWithCtx for PikeFunctionRef {
 }
 
 impl PikeFunctionRef {
-    pub fn new(object: *mut object, fun_idx: c_ushort, ctx: &PikeContext)
+    pub unsafe fn new(object: *mut object, fun_idx: c_ushort, ctx: &PikeContext)
     -> Self {
-        let pikeobj =
-            unsafe { PikeObjectRef::<()>::from_ptr_add_ref(object, ctx) };
+        let pikeobj = PikeObjectRef::<()>::from_ptr_add_ref(object, ctx);
         PikeFunctionRef { pikeobj: pikeobj, fun_idx: fun_idx }
     }
 
-    pub fn new_without_ref(object: *mut object, fun_idx: c_ushort)
+    pub unsafe fn new_without_ref(object: *mut object, fun_idx: c_ushort)
     -> Self {
-        let pikeobj = unsafe { PikeObjectRef::<()>::from_ptr(object) };
+        let pikeobj = PikeObjectRef::<()>::from_ptr(object);
         PikeFunctionRef { pikeobj: pikeobj, fun_idx: fun_idx }
     }
 
@@ -47,7 +46,7 @@ pub struct PikeFunction<'ctx> {
 define_from_impls!(PikeFunctionRef, PikeFunction, Function, func_ref);
 
 impl<'ctx> PikeFunction<'ctx> {
-    pub fn new(object: *mut object, fun_idx: c_ushort, ctx: &'ctx PikeContext)
+    pub unsafe fn new(object: *mut object, fun_idx: c_ushort, ctx: &'ctx PikeContext)
     -> Self {
         PikeFunction { func_ref: PikeFunctionRef::new(object, fun_idx, ctx), ctx }
     }

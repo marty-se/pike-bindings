@@ -1,9 +1,8 @@
 use ::interpreter::PikeContext;
 
 pub(crate) trait Refcounted<TPtr>: Drop + CloneWithCtx {
-    unsafe fn from_ptr<'ctx>(ptr: *mut TPtr) -> Self;
-    unsafe fn from_ptr_add_ref<'ctx>(ptr: *mut TPtr, ctx: &'ctx PikeContext)
-        -> Self;
+    unsafe fn from_ptr(ptr: *mut TPtr) -> Self;
+    unsafe fn from_ptr_add_ref(ptr: *mut TPtr, ctx: &PikeContext) -> Self;
     fn as_mut_ptr(&self) -> *mut TPtr;
 }
 

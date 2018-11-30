@@ -73,11 +73,11 @@ fn match_shallow_path( path: &syn::Path ) -> Option< &str > {
 
     let segment = &path.segments[ 0 ];
     let name = segment.ident.as_ref();
-    match &segment.arguments {
-        &syn::PathArguments::None => {
+    match segment.arguments {
+        syn::PathArguments::None => {
             Some( name )
         },
-        &syn::PathArguments::Parenthesized(ref _p) => {
+        syn::PathArguments::Parenthesized(ref _p) => {
             match name {
                 "Fn" => Some(name),
                 _ => None
@@ -88,28 +88,19 @@ fn match_shallow_path( path: &syn::Path ) -> Option< &str > {
 }
 
 fn match_result_type(ty: &syn::Type) -> Option<ExportType> {
-    if let &syn::Type::Path(ref type_path) = ty {
+    if let syn::Type::Path(type_path) = ty {
         if let Some(last_seg) = &type_path.path.segments.last() {
             let seg = last_seg.value();
             if seg.ident == "Result" {
-                match seg.arguments {
-                    syn::PathArguments::AngleBracketed(ref abga) => {
-                        match abga.args.first() {
-                            Some(first_arg) => {
-                                match first_arg.into_value() {
-                                    syn::GenericArgument::Type(gty) => {
-                                        let inner_type = match_type (&gty);
-                                        let res = ExportType::Result(
-                                            Box::new(inner_type));
-                                        return Some(res);
-                                    },
-                                    _ => {}
-                                }
-                            },
-                            None => {}
+                if let syn::PathArguments::AngleBracketed(abga) = &seg.arguments {
+                    if let Some(first_arg) = abga.args.first() {
+                        if let syn::GenericArgument::Type(gty) = first_arg.into_value() {
+                            let inner_type = match_type (&gty);
+                            let res = ExportType::Result(
+                                Box::new(inner_type));
+                            return Some(res);
                         }
-                    },
-                    _ => {}
+                    }
                 }
             }
         }
@@ -119,14 +110,11 @@ fn match_result_type(ty: &syn::Type) -> Option<ExportType> {
 
 // Returns the ident of the last segment of the type's path, if any.
 fn ident_from_type(ty: &syn::Type) -> Option<syn::Ident> {
-    match ty {
-        &syn::Type::Path(ref type_path) => {
-            if let Some(last_seg) = &type_path.path.segments.last() {
-                let seg = last_seg.value();
-                return Some(seg.ident.clone());
-            }
-        },
-        _ => {}
+    if let syn::Type::Path(type_path) = ty {
+        if let Some(last_seg) = &type_path.path.segments.last() {
+            let seg = last_seg.value();
+            return Some(seg.ident);
+        }
     }
     None
 }
@@ -306,7 +294,7 @@ fn result_wrapper_code(ty: &ExportType, export: &Export, call: quote::Tokens)
             quote! {
                 let prog_ref = #program_var.as_ref();
                 match prog_ref.expect("Program var not initialized")
-                         .clone_object_with_data(#call) {
+                         .clone_object(#call) {
                              Ok(val) => {
                                  Ok(val.into())
                              },
@@ -500,7 +488,7 @@ fn process( exports: Vec< Export > ) -> quote::Tokens {
                     // FIXME: Check that current_object is an instance of the
                     // expected Pike program.
                     export_args_conversions.push(quote! {
-                        let cur_pike_obj = PikeObject::<#struct_type>::current_object(&ctx);
+                        let mut cur_pike_obj = PikeObject::<#struct_type>::current_object(&ctx);
                         let #export_arg_ident: &mut #struct_type = cur_pike_obj.wrapped();
                     });
                     add_arg = false;
@@ -639,7 +627,8 @@ fn process( exports: Vec< Export > ) -> quote::Tokens {
             let ref mut a = *e.borrow_mut();
             a.push(
                 quote! {
-                    PikeProgram::<()>::add_pike_func(#pike_ident,
+                    PikeProgram::<()>::add_pike_func(&ctx,
+                        #pike_ident,
                         #pike_func_type,
                         #export_ident);
                 })
@@ -673,8 +662,8 @@ fn handle_item_impl(mut orig_item: syn::Item) -> TokenStream {
                     let ctx;
                     unsafe {
                         ctx = PikeContext::assume_got_context();
-                        PikeProgram::<#struct_ty>::start_new_program(file!(), line!());
                     }
+                    PikeProgram::<#struct_ty>::start_new_program(&ctx, file!(), line!());
                 }
             );
         });
@@ -711,7 +700,8 @@ fn handle_item_impl(mut orig_item: syn::Item) -> TokenStream {
         a.push(
             quote! {
                 let new_class_prog = PikeProgram::<#struct_ty>::finish_program(&ctx);
-                PikeProgram::add_program_constant(#class_ident, new_class_prog.clone());
+                PikeProgram::add_program_constant(&ctx,
+                    #class_ident, &new_class_prog);
                 unsafe {
                     // We know that Pike's compiler lock protects us from
                     // data races, so we're doing an unsafe mutable assignment

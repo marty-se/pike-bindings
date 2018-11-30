@@ -53,7 +53,7 @@ impl PikeThing {
     pub fn undefined() -> Self {
         let sval = svalue::undefined();
         let res: PikeThing = sval.into();
-        return res;
+        res
     }
 
     pub fn clone_with_ctx(&self, ctx: &PikeContext) -> PikeThing {
@@ -72,7 +72,7 @@ impl PikeThing {
         }
     }
 
-    pub fn unwrap<'ctx>(self, ctx: &'ctx PikeContext) -> PikeThingWithCtx<'ctx> {
+    pub fn unwrap(self, ctx: &PikeContext) -> PikeThingWithCtx {
         PikeThingWithCtx { thing: self, ctx: ctx }
     }
 }
@@ -180,7 +180,7 @@ impl<'de> Deserialize<'de> for PikeThing {
 
 impl From<()> for PikeThing {
     fn from(_: ()) -> PikeThing {
-        return PikeThing::undefined();
+        PikeThing::undefined()
     }
 }
 
@@ -188,13 +188,14 @@ macro_rules! gen_from_type_int {
     ($inttype: ident) => {
         impl From<$inttype> for PikeThing {
             fn from(i: $inttype) -> PikeThing {
-                return PikeThing::Int(i.into());
+                PikeThing::Int(i.into())
             }
         }
     };
 }
 
-gen_from_type_int!(u64);
+// FIXME: Convert overflowing types to Pike bignums?
+//gen_from_type_int!(u64);
 gen_from_type_int!(u32);
 gen_from_type_int!(u16);
 gen_from_type_int!(u8);

@@ -15,7 +15,7 @@ macro_rules! gen_from_type {
     ($floattype: ident) => {
         impl From<$floattype> for PikeFloat {
             fn from(f: $floattype) -> PikeFloat {
-                return PikeFloat::new(f as f64);
+                return PikeFloat::new(f64::from(f));
             }
         }
         impl From<PikeFloat> for $floattype {

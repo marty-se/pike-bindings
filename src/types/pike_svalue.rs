@@ -10,7 +10,7 @@ impl From<svalue> for PikeThing {
     fn from (sval: svalue) -> Self {
         let type_ = unsafe { sval.tu.t.type_ };
         let subtype = unsafe { sval.tu.t.subtype };
-        let res = match type_ as u32 {
+        let res = match type_.into() {
             PIKE_T_ARRAY => {
                 PikeThing::Array(
                     unsafe {
@@ -158,7 +158,7 @@ impl svalue {
             type_: PIKE_T_INT as ::std::os::raw::c_ushort,
             subtype: NUMBER_UNDEFINED as u16 };
         let tu = ::ffi::svalue__bindgen_ty_1 {t: t};
-        return ::ffi::svalue {u: a, tu: tu};
+        ::ffi::svalue {u: a, tu: tu}
     }
 
     pub fn clone(&self, ctx: &PikeContext) -> Self {
@@ -197,7 +197,7 @@ impl svalue {
         None
     }
 
-    pub fn mark_free(&mut self) -> () {
+    pub fn mark_free(&mut self) {
         unsafe {
             self.tu.t.type_ = PIKE_T_FREE as u16;
         }
@@ -211,7 +211,7 @@ impl svalue {
 
     #[allow(dead_code)]
     fn subtype(&self) -> u16 {
-        return unsafe { self.tu.t.subtype }
+        unsafe { self.tu.t.subtype }
     }
 
     fn refcounted_type(&self) -> bool {
